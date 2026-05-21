@@ -10,11 +10,13 @@
 //     highlighted: number[],
 //     sorted?:     number[],
 //     key?:        { value: number, index: number },  // held element, e.g. insertion sort
+//     minIndex?:   number,                             // running minimum, e.g. selection sort
 //     message?:    string
 //   }
 // When `key` is present, drawArray renders the array index at `key.index` as a
 // dashed empty slot and draws a labelled coloured bar above the chart at that
 // position to represent the value being held.
+// When `minIndex` is present, that slot is drawn in purple.
 // ============================================================================
 
 // ---- DOM handles -----------------------------------------------------------
@@ -55,7 +57,7 @@ function resizeCanvas() {
   render();
 }
 
-function drawArray(arr, highlighted = [], sorted = [], keyHeld = null) {
+function drawArray(arr, highlighted = [], sorted = [], keyHeld = null, minIndex = null) {
   const W = canvas.width;
   const H = canvas.height;
 
@@ -98,10 +100,11 @@ function drawArray(arr, highlighted = [], sorted = [], keyHeld = null) {
     const barHeight = (v / maxVal) * chartHeight;
     const y         = chartBottom - barHeight;
 
-    // Colour priority: active highlight beats sorted beats default.
+    // Colour priority: active highlight > running min > sorted > default.
     let colour = '#4a9eff';                      // default: in-play, unsorted
-    if (sor.has(i)) colour = '#3ddc97';          // locked in final position
-    if (hi.has(i))  colour = '#ff9f43';          // actively being touched
+    if (sor.has(i))      colour = '#3ddc97';     // locked in final position
+    if (minIndex === i)  colour = '#c084fc';     // running minimum (selection sort)
+    if (hi.has(i))       colour = '#ff9f43';     // actively being touched
     ctx.fillStyle = colour;
     ctx.fillRect(x, y, barWidth, barHeight);
   }
@@ -128,7 +131,7 @@ function drawArray(arr, highlighted = [], sorted = [], keyHeld = null) {
 
 function render() {
   const f = frames[cursor] ?? { array: [], highlighted: [], sorted: [], message: 'No frames loaded.' };
-  drawArray(f.array, f.highlighted, f.sorted, f.key ?? null);
+  drawArray(f.array, f.highlighted, f.sorted, f.key ?? null, f.minIndex ?? null);
   statusText.textContent   = f.message ?? '';
   frameCounter.textContent = `frame ${frames.length ? cursor + 1 : 0} / ${frames.length}`;
 }
@@ -232,6 +235,7 @@ document.addEventListener('keydown', (e) => {
 const ALGORITHMS = {
   bubble:    { name: 'Bubble Sort',    fn: bubbleSort    },
   insertion: { name: 'Insertion Sort', fn: insertionSort },
+  selection: { name: 'Selection Sort', fn: selectionSort },
 };
 
 // The current working array. Mutated only via setArray() so the input field,
