@@ -22,6 +22,10 @@ const btnReset       = document.getElementById('btn-reset');
 const speedInput     = document.getElementById('speed');
 const speedValue     = document.getElementById('speed-value');
 const algoSelect     = document.getElementById('algo');
+const inputField     = document.getElementById('input-array');
+const btnApply       = document.getElementById('btn-apply');
+const btnRandom      = document.getElementById('btn-random');
+const inputError     = document.getElementById('input-error');
 
 // ---- Player state ----------------------------------------------------------
 let frames  = [];
@@ -182,22 +186,82 @@ const ALGORITHMS = {
   bubble: { name: 'Bubble Sort', fn: bubbleSort },
 };
 
-// Default input until the custom-input text box arrives (next step).
-const defaultArray = [5, 2, 8, 1, 9, 3, 7, 4, 6];
+// The current working array. Mutated only via setArray() so the input field,
+// frame stream, and on-screen state never drift apart.
+let currentArray = [5, 2, 8, 1, 9, 3, 7, 4, 6];
+
+const MAX_INPUT_LENGTH = 200;   // cap to keep frame count sane
 
 function loadAlgorithm(key) {
   const algo = ALGORITHMS[key];
   if (!algo) return;
   pause();
-  frames = algo.fn(defaultArray.slice());
+  frames = algo.fn(currentArray.slice());
   cursor = 0;
   render();
 }
 
+function setArray(arr) {
+  currentArray = arr.slice();
+  inputField.value = currentArray.join(', ');
+  loadAlgorithm(algoSelect.value);
+}
+
+// ============================================================================
+// Custom input
+// ----------------------------------------------------------------------------
+// Permissive parser: splits on commas and whitespace, both work and mix freely.
+// Strict validation: non-negative integers only. Anything else returns an error
+// for inline display so the user knows exactly what they got wrong.
+// ============================================================================
+
+function parseInput(text) {
+  const tokens = text.split(/[\s,]+/).filter(t => t.length > 0);
+  if (tokens.length === 0) {
+    return { error: 'Enter at least one number.' };
+  }
+  if (tokens.length > MAX_INPUT_LENGTH) {
+    return { error: `Too many values (max ${MAX_INPUT_LENGTH}).` };
+  }
+  const nums = [];
+  for (const t of tokens) {
+    if (!/^\d+$/.test(t)) {
+      return { error: `"${t}" is not a non-negative integer.` };
+    }
+    nums.push(Number(t));
+  }
+  return { values: nums };
+}
+
+function randomArray(size = 12, maxVal = 50) {
+  const arr = [];
+  for (let i = 0; i < size; i++) {
+    arr.push(Math.floor(Math.random() * maxVal) + 1);
+  }
+  return arr;
+}
+
+function applyInput() {
+  const result = parseInput(inputField.value);
+  if (result.error) {
+    inputError.textContent = result.error;
+    return;
+  }
+  inputError.textContent = '';
+  setArray(result.values);
+}
+
 algoSelect.addEventListener('change', () => loadAlgorithm(algoSelect.value));
+btnApply.addEventListener('click', applyInput);
+btnRandom.addEventListener('click', () => setArray(randomArray()));
+inputField.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); applyInput(); }
+});
+inputField.addEventListener('input', () => { inputError.textContent = ''; });
 
 // ---- Boot ------------------------------------------------------------------
 speedValue.textContent = `${fps} fps`;
-resizeCanvas();    // sizes the canvas
-loadAlgorithm(algoSelect.value);   // generates frames + paints first frame
+inputField.value = currentArray.join(', ');
+resizeCanvas();                       // sizes the canvas
+loadAlgorithm(algoSelect.value);      // generates frames + paints first frame
 updateButtons();

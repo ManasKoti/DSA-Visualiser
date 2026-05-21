@@ -51,6 +51,53 @@ header h1 {
   font-size: 14px;
 }
 
+#toolbar {
+  padding: 8px 16px;
+  border-bottom: 1px solid #333;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.input-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  flex: 1;
+  min-width: 260px;
+}
+
+.input-row input {
+  flex: 1;
+  background: #2a2a2a;
+  color: #eaeaea;
+  border: 1px solid #444;
+  padding: 6px 8px;
+  font-size: 14px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+#toolbar button {
+  background: #2a2a2a;
+  color: #eaeaea;
+  border: 1px solid #444;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+#toolbar button:hover {
+  background: #353535;
+}
+
+#input-error {
+  color: #ff6b6b;
+  font-size: 13px;
+  min-height: 1em;
+}
+
 main {
   flex: 1;
   display: flex;

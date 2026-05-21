@@ -20,6 +20,18 @@
     <span id="status-text">Ready.</span>
   </header>
 
+  <div id="toolbar">
+    <label class="input-row">
+      Input
+      <input id="input-array" type="text"
+             placeholder="e.g. 5, 2, 8, 1, 9, 3, 7, 4, 6"
+             autocomplete="off" spellcheck="false" />
+    </label>
+    <button id="btn-apply"  type="button">Apply</button>
+    <button id="btn-random" type="button">Random</button>
+    <span id="input-error" role="alert"></span>
+  </div>
+
   <main>
     <!-- Single rendering surface. Every algorithm draws here via drawArray() etc. -->
     <canvas id="stage" width="1200" height="600"></canvas>
