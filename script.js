@@ -5,7 +5,16 @@
 // touches the canvas; rendering code never touches algorithm logic.
 //
 // Frame shape:
-//   { array: number[], highlighted: number[], sorted?: number[], message?: string }
+//   {
+//     array:       number[],
+//     highlighted: number[],
+//     sorted?:     number[],
+//     key?:        { value: number, index: number },  // held element, e.g. insertion sort
+//     message?:    string
+//   }
+// When `key` is present, drawArray renders the array index at `key.index` as a
+// dashed empty slot and draws a labelled coloured bar above the chart at that
+// position to represent the value being held.
 // ============================================================================
 
 // ---- DOM handles -----------------------------------------------------------
@@ -46,7 +55,7 @@ function resizeCanvas() {
   render();
 }
 
-function drawArray(arr, highlighted = [], sorted = []) {
+function drawArray(arr, highlighted = [], sorted = [], keyHeld = null) {
   const W = canvas.width;
   const H = canvas.height;
 
@@ -55,20 +64,39 @@ function drawArray(arr, highlighted = [], sorted = []) {
 
   if (!arr || arr.length === 0) return;
 
+  // Reserve space at the top for a held element (e.g. insertion sort's "key").
+  const heldArea    = keyHeld ? 80 : 0;
+  const bottomPad   = 20;
+  const chartTop    = heldArea;
+  const chartHeight = H - heldArea - bottomPad;
+  const chartBottom = chartTop + chartHeight;
+
   const slotWidth = W / arr.length;
   const padding   = Math.min(6, slotWidth * 0.15);
   const barWidth  = Math.max(1, slotWidth - padding);
-  const maxVal    = Math.max(...arr, 1);
-  const topPad    = 20;
+  // Held value participates in scale so the floating bar is directly comparable.
+  const maxVal    = Math.max(...arr, keyHeld ? keyHeld.value : 1, 1);
 
   const hi  = new Set(highlighted);
   const sor = new Set(sorted);
+  const gap = keyHeld ? keyHeld.index : -1;
 
   for (let i = 0; i < arr.length; i++) {
+    const x = i * slotWidth + padding / 2;
+
+    if (i === gap) {
+      // Dashed outline marks the slot where the held key was lifted from.
+      ctx.strokeStyle = '#555';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 3]);
+      ctx.strokeRect(x, chartTop, barWidth, chartHeight);
+      ctx.setLineDash([]);
+      continue;
+    }
+
     const v         = arr[i];
-    const barHeight = (v / maxVal) * (H - topPad);
-    const x         = i * slotWidth + padding / 2;
-    const y         = H - barHeight;
+    const barHeight = (v / maxVal) * chartHeight;
+    const y         = chartBottom - barHeight;
 
     // Colour priority: active highlight beats sorted beats default.
     let colour = '#4a9eff';                      // default: in-play, unsorted
@@ -77,11 +105,30 @@ function drawArray(arr, highlighted = [], sorted = []) {
     ctx.fillStyle = colour;
     ctx.fillRect(x, y, barWidth, barHeight);
   }
+
+  // Floating held key: same vertical scale as chart bars, clipped to held area.
+  if (keyHeld) {
+    const x          = gap * slotWidth + padding / 2;
+    const fullHeight = (keyHeld.value / maxVal) * chartHeight;
+    const cappedH    = Math.min(fullHeight, heldArea - 12);
+    const heldBottom = chartTop - 6;            // small gap above the chart
+    const heldTop    = heldBottom - cappedH;
+
+    ctx.fillStyle = '#e94560';
+    ctx.fillRect(x, heldTop, barWidth, cappedH);
+
+    // Label the held value so size-clipping never hides what it is.
+    ctx.fillStyle    = '#fff';
+    ctx.font         = '12px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(String(keyHeld.value), x + barWidth / 2, heldTop + 2);
+  }
 }
 
 function render() {
   const f = frames[cursor] ?? { array: [], highlighted: [], sorted: [], message: 'No frames loaded.' };
-  drawArray(f.array, f.highlighted, f.sorted);
+  drawArray(f.array, f.highlighted, f.sorted, f.key ?? null);
   statusText.textContent   = f.message ?? '';
   frameCounter.textContent = `frame ${frames.length ? cursor + 1 : 0} / ${frames.length}`;
 }
@@ -183,7 +230,8 @@ document.addEventListener('keydown', (e) => {
 // ============================================================================
 
 const ALGORITHMS = {
-  bubble: { name: 'Bubble Sort', fn: bubbleSort },
+  bubble:    { name: 'Bubble Sort',    fn: bubbleSort    },
+  insertion: { name: 'Insertion Sort', fn: insertionSort },
 };
 
 // The current working array. Mutated only via setArray() so the input field,
