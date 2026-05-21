@@ -5,7 +5,7 @@
 // touches the canvas; rendering code never touches algorithm logic.
 //
 // Frame shape:
-//   { array: number[], highlighted: number[], message?: string }
+//   { array: number[], highlighted: number[], sorted?: number[], message?: string }
 // ============================================================================
 
 // ---- DOM handles -----------------------------------------------------------
@@ -21,6 +21,7 @@ const btnStepBack    = document.getElementById('btn-step-back');
 const btnReset       = document.getElementById('btn-reset');
 const speedInput     = document.getElementById('speed');
 const speedValue     = document.getElementById('speed-value');
+const algoSelect     = document.getElementById('algo');
 
 // ---- Player state ----------------------------------------------------------
 let frames  = [];
@@ -41,7 +42,7 @@ function resizeCanvas() {
   render();
 }
 
-function drawArray(arr, highlighted = []) {
+function drawArray(arr, highlighted = [], sorted = []) {
   const W = canvas.width;
   const H = canvas.height;
 
@@ -56,7 +57,8 @@ function drawArray(arr, highlighted = []) {
   const maxVal    = Math.max(...arr, 1);
   const topPad    = 20;
 
-  const hi = new Set(highlighted);
+  const hi  = new Set(highlighted);
+  const sor = new Set(sorted);
 
   for (let i = 0; i < arr.length; i++) {
     const v         = arr[i];
@@ -64,14 +66,18 @@ function drawArray(arr, highlighted = []) {
     const x         = i * slotWidth + padding / 2;
     const y         = H - barHeight;
 
-    ctx.fillStyle = hi.has(i) ? '#ff9f43' : '#4a9eff';
+    // Colour priority: active highlight beats sorted beats default.
+    let colour = '#4a9eff';                      // default: in-play, unsorted
+    if (sor.has(i)) colour = '#3ddc97';          // locked in final position
+    if (hi.has(i))  colour = '#ff9f43';          // actively being touched
+    ctx.fillStyle = colour;
     ctx.fillRect(x, y, barWidth, barHeight);
   }
 }
 
 function render() {
-  const f = frames[cursor] ?? { array: [], highlighted: [], message: 'No frames loaded.' };
-  drawArray(f.array, f.highlighted);
+  const f = frames[cursor] ?? { array: [], highlighted: [], sorted: [], message: 'No frames loaded.' };
+  drawArray(f.array, f.highlighted, f.sorted);
   statusText.textContent   = f.message ?? '';
   frameCounter.textContent = `frame ${frames.length ? cursor + 1 : 0} / ${frames.length}`;
 }
@@ -164,24 +170,34 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ============================================================================
-// Hand-written fake frames
+// Algorithm registry
 // ----------------------------------------------------------------------------
-// Purpose: exercise the engine before any real algorithm exists.
-// Covers: empty highlights, single highlight, multi highlight, array mutation.
+// Each entry maps a key (matching an <option value> in the algo dropdown) to a
+// pure function that takes an array and returns a list of frames. Adding a
+// new sort = drop a file in /algorithms, add a <script> tag, add one line here
+// and one <option> in index.html.
 // ============================================================================
 
-frames = [
-  { array: [4, 2, 7, 1, 9, 3, 5], highlighted: [],            message: 'Initial state'                       },
-  { array: [4, 2, 7, 1, 9, 3, 5], highlighted: [0],           message: 'Looking at index 0'                  },
-  { array: [4, 2, 7, 1, 9, 3, 5], highlighted: [0, 4],        message: 'Comparing indices 0 and 4'           },
-  { array: [4, 2, 7, 1, 9, 3, 5], highlighted: [4],           message: 'Max so far is at index 4'            },
-  { array: [9, 2, 7, 1, 4, 3, 5], highlighted: [0, 4],        message: 'Swapped indices 0 and 4'             },
-  { array: [9, 2, 7, 1, 4, 3, 5], highlighted: [],            message: 'Brief pause...'                      },
-  { array: [9, 2, 7, 1, 4, 3, 5], highlighted: [1,2,3,4,5,6], message: 'Highlighting the rest of the array' },
-  { array: [9, 2, 7, 1, 4, 3, 5], highlighted: [],            message: 'Engine works.'                       },
-];
+const ALGORITHMS = {
+  bubble: { name: 'Bubble Sort', fn: bubbleSort },
+};
+
+// Default input until the custom-input text box arrives (next step).
+const defaultArray = [5, 2, 8, 1, 9, 3, 7, 4, 6];
+
+function loadAlgorithm(key) {
+  const algo = ALGORITHMS[key];
+  if (!algo) return;
+  pause();
+  frames = algo.fn(defaultArray.slice());
+  cursor = 0;
+  render();
+}
+
+algoSelect.addEventListener('change', () => loadAlgorithm(algoSelect.value));
 
 // ---- Boot ------------------------------------------------------------------
 speedValue.textContent = `${fps} fps`;
-resizeCanvas();    // also paints first frame via render()
+resizeCanvas();    // sizes the canvas
+loadAlgorithm(algoSelect.value);   // generates frames + paints first frame
 updateButtons();
