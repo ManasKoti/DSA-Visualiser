@@ -4,19 +4,30 @@
 // Algorithms produce frames. The engine plays them back. Algorithm code never
 // touches the canvas; rendering code never touches algorithm logic.
 //
-// Frame shape:
+// Frame shape (all fields except `array` are optional; absent = inactive):
 //   {
-//     array:       number[],
-//     highlighted: number[],
-//     sorted?:     number[],
-//     key?:        { value: number, index: number },  // held element, e.g. insertion sort
-//     minIndex?:   number,                             // running minimum, e.g. selection sort
-//     message?:    string
+//     array:        number[],
+//     highlighted?: number[],                              // indices being touched
+//     sorted?:      number[],                              // locked in final place
+//     key?:         { value, index },                      // insertion sort: held element
+//     minIndex?:    number,                                // selection sort: running min
+//     activeRange?: [lo, hi],                              // merge sort: active sub-array
+//     midIndex?:    number,                                // merge sort: split position
+//     aux?:         { values, leftPtr, rightPtr, midOffset }, // merge sort: aux buffer
+//     writeIndex?:  number,                                // merge sort: next write target
+//     message?:     string
 //   }
-// When `key` is present, drawArray renders the array index at `key.index` as a
-// dashed empty slot and draws a labelled coloured bar above the chart at that
-// position to represent the value being held.
-// When `minIndex` is present, that slot is drawn in purple.
+//
+// Visual conventions:
+//   - `key` present  ⇒ slot at key.index drawn as dashed gap; floating bar above chart.
+//   - `minIndex`     ⇒ that slot is purple.
+//   - `activeRange`  ⇒ bars outside the range are dimmed; a divider sits at midIndex.
+//   - `aux`          ⇒ auxiliary buffer rendered as a second strip below the chart,
+//                      aligned horizontally with the active range. Two arrow markers
+//                      sit on top of the strip at leftPtr / rightPtr. Consumed slots
+//                      (null) appear faded.
+//   - `writeIndex`   ⇒ a small triangle above the main chart points at the next slot
+//                      that the merge step will write into.
 // ============================================================================
 
 // ---- DOM handles -----------------------------------------------------------
@@ -57,38 +68,80 @@ function resizeCanvas() {
   render();
 }
 
-function drawArray(arr, highlighted = [], sorted = [], keyHeld = null, minIndex = null) {
+// Colours — kept as a single palette so the algorithm files don't have to
+// know about them and so adding a new state means editing one place.
+const COLOURS = {
+  bg:        '#111',
+  bar:       '#4a9eff',  // default in-play
+  barDim:    '#2a3b4d',  // outside the active sub-array (merge sort)
+  sorted:    '#3ddc97',
+  minRun:    '#c084fc',  // selection sort running minimum
+  highlight: '#ff9f43',
+  held:      '#e94560',  // insertion sort floating key
+  divider:   '#888',     // mid-line in active range
+  pointer:   '#ffd166',  // aux strip pointers
+  writeMark: '#ff9f43',  // arrow above next write slot
+  text:      '#fff',
+  textDim:   '#777',
+  dashGap:   '#555',
+};
+
+const FONT_MONO = '12px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+
+function drawArray(arr, opts = {}) {
+  const {
+    highlighted = [],
+    sorted      = [],
+    keyHeld     = null,
+    minIndex    = null,
+    activeRange = null,   // [lo, hi]
+    midIndex    = null,
+    aux         = null,   // { values, leftPtr, rightPtr, midOffset }
+    writeIndex  = null,
+  } = opts;
+
   const W = canvas.width;
   const H = canvas.height;
 
-  ctx.fillStyle = '#111';
+  ctx.fillStyle = COLOURS.bg;
   ctx.fillRect(0, 0, W, H);
 
   if (!arr || arr.length === 0) return;
 
-  // Reserve space at the top for a held element (e.g. insertion sort's "key").
-  const heldArea    = keyHeld ? 80 : 0;
-  const bottomPad   = 20;
+  // Vertical budget: top region for held key (insertion), bottom region for
+  // aux strip (merge). Either can be zero. The main chart claims whatever
+  // is left.
+  const heldArea  = keyHeld ? 80 : 0;
+  const auxArea   = aux ? 90 : 0;       // strip + labels + gap
+  const bottomPad = 20;
+
   const chartTop    = heldArea;
-  const chartHeight = H - heldArea - bottomPad;
+  const chartHeight = H - heldArea - auxArea - bottomPad;
   const chartBottom = chartTop + chartHeight;
 
   const slotWidth = W / arr.length;
   const padding   = Math.min(6, slotWidth * 0.15);
   const barWidth  = Math.max(1, slotWidth - padding);
-  // Held value participates in scale so the floating bar is directly comparable.
-  const maxVal    = Math.max(...arr, keyHeld ? keyHeld.value : 1, 1);
+  // Held key participates in scale so the floating bar is directly comparable.
+  // Aux values do too, since they are the same numbers in flight.
+  const auxMax    = aux ? Math.max(...aux.values.filter(v => v !== null), 1) : 1;
+  const maxVal    = Math.max(...arr, keyHeld ? keyHeld.value : 1, auxMax, 1);
 
-  const hi  = new Set(highlighted);
-  const sor = new Set(sorted);
-  const gap = keyHeld ? keyHeld.index : -1;
+  const hiSet  = new Set(highlighted);
+  const sorSet = new Set(sorted);
+  const gap    = keyHeld ? keyHeld.index : -1;
 
+  // Active sub-array bounds; default to "all of arr is active" so the dim
+  // logic below doesn't have to special-case the no-activeRange case.
+  const [aLo, aHi] = activeRange ?? [0, arr.length - 1];
+
+  // ---- Main chart bars -----------------------------------------------------
   for (let i = 0; i < arr.length; i++) {
     const x = i * slotWidth + padding / 2;
 
     if (i === gap) {
       // Dashed outline marks the slot where the held key was lifted from.
-      ctx.strokeStyle = '#555';
+      ctx.strokeStyle = COLOURS.dashGap;
       ctx.lineWidth = 1;
       ctx.setLineDash([4, 3]);
       ctx.strokeRect(x, chartTop, barWidth, chartHeight);
@@ -100,38 +153,157 @@ function drawArray(arr, highlighted = [], sorted = [], keyHeld = null, minIndex 
     const barHeight = (v / maxVal) * chartHeight;
     const y         = chartBottom - barHeight;
 
-    // Colour priority: active highlight > running min > sorted > default.
-    let colour = '#4a9eff';                      // default: in-play, unsorted
-    if (sor.has(i))      colour = '#3ddc97';     // locked in final position
-    if (minIndex === i)  colour = '#c084fc';     // running minimum (selection sort)
-    if (hi.has(i))       colour = '#ff9f43';     // actively being touched
+    const inActive = i >= aLo && i <= aHi;
+
+    // Colour priority: highlight > min > sorted > active default > dimmed default.
+    let colour = inActive ? COLOURS.bar : COLOURS.barDim;
+    if (sorSet.has(i))   colour = COLOURS.sorted;
+    if (minIndex === i)  colour = COLOURS.minRun;
+    if (hiSet.has(i))    colour = COLOURS.highlight;
     ctx.fillStyle = colour;
     ctx.fillRect(x, y, barWidth, barHeight);
   }
 
-  // Floating held key: same vertical scale as chart bars, clipped to held area.
+  // ---- Mid divider inside the active range --------------------------------
+  if (activeRange !== null && midIndex !== null) {
+    const dx = (midIndex + 1) * slotWidth;       // line between mid and mid+1
+    ctx.strokeStyle = COLOURS.divider;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath();
+    ctx.moveTo(dx, chartTop);
+    ctx.lineTo(dx, chartBottom);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // ---- Write-index marker (small triangle above the target slot) ----------
+  if (writeIndex !== null && writeIndex >= 0 && writeIndex < arr.length) {
+    const cx = writeIndex * slotWidth + slotWidth / 2;
+    const ty = chartTop - 2;
+    ctx.fillStyle = COLOURS.writeMark;
+    ctx.beginPath();
+    ctx.moveTo(cx, ty);
+    ctx.lineTo(cx - 5, ty - 8);
+    ctx.lineTo(cx + 5, ty - 8);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // ---- Floating held key (insertion sort) ---------------------------------
   if (keyHeld) {
     const x          = gap * slotWidth + padding / 2;
     const fullHeight = (keyHeld.value / maxVal) * chartHeight;
     const cappedH    = Math.min(fullHeight, heldArea - 12);
-    const heldBottom = chartTop - 6;            // small gap above the chart
+    const heldBottom = chartTop - 6;
     const heldTop    = heldBottom - cappedH;
 
-    ctx.fillStyle = '#e94560';
+    ctx.fillStyle = COLOURS.held;
     ctx.fillRect(x, heldTop, barWidth, cappedH);
 
-    // Label the held value so size-clipping never hides what it is.
-    ctx.fillStyle    = '#fff';
-    ctx.font         = '12px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+    ctx.fillStyle    = COLOURS.text;
+    ctx.font         = FONT_MONO;
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText(String(keyHeld.value), x + barWidth / 2, heldTop + 2);
   }
+
+  // ---- Aux strip (merge sort) ---------------------------------------------
+  if (aux) {
+    drawAuxStrip({
+      aux,
+      activeLo:    aLo,
+      slotWidth,
+      padding,
+      barWidth,
+      maxVal,
+      chartBottom,
+      auxArea,
+    });
+  }
+}
+
+// Auxiliary buffer strip — drawn beneath the main chart, horizontally
+// aligned with the active range so cells map one-to-one to their eventual
+// destination slot. The two pointers sit above the strip; the divider
+// between the left and right halves sits inside it.
+function drawAuxStrip({ aux, activeLo, slotWidth, padding, barWidth, maxVal, chartBottom, auxArea }) {
+  const { values, leftPtr, rightPtr, midOffset } = aux;
+  const gapAbove   = 14;                            // breathing room below main chart
+  const stripTop   = chartBottom + gapAbove;
+  const stripH     = auxArea - gapAbove - 8;        // leave a little room for labels
+  const stripBot   = stripTop + stripH;
+
+  // Background band so the strip reads as a unit even when many cells are null.
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(activeLo * slotWidth, stripTop, values.length * slotWidth, stripH);
+
+  for (let i = 0; i < values.length; i++) {
+    const x = (activeLo + i) * slotWidth + padding / 2;
+    const v = values[i];
+
+    if (v === null) {
+      // Consumed slot: a faint dashed outline so the eye can still see it was there.
+      ctx.strokeStyle = COLOURS.dashGap;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.strokeRect(x, stripTop + 2, barWidth, stripH - 4);
+      ctx.setLineDash([]);
+      continue;
+    }
+
+    const h = Math.max(2, (v / maxVal) * (stripH - 4));
+    const y = stripBot - h - 2;
+    // Tint left half vs. right half so the two sorted runs are visually distinct.
+    ctx.fillStyle = i < midOffset ? '#5d7fbf' : '#bf7f5d';
+    ctx.fillRect(x, y, barWidth, h);
+  }
+
+  // Divider between the two halves of the strip.
+  const dividerX = (activeLo + midOffset) * slotWidth;
+  ctx.strokeStyle = COLOURS.divider;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([2, 3]);
+  ctx.beginPath();
+  ctx.moveTo(dividerX, stripTop);
+  ctx.lineTo(dividerX, stripBot);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Pointers — small downward triangles hovering just above the strip.
+  const drawPtr = (ptr, label) => {
+    if (ptr === null || ptr === undefined) return;
+    const cx = (activeLo + ptr) * slotWidth + slotWidth / 2;
+    const ty = stripTop - 2;
+    ctx.fillStyle = COLOURS.pointer;
+    ctx.beginPath();
+    ctx.moveTo(cx, ty);
+    ctx.lineTo(cx - 5, ty - 8);
+    ctx.lineTo(cx + 5, ty - 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle    = COLOURS.pointer;
+    ctx.font         = FONT_MONO;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(label, cx, ty - 9);
+  };
+  drawPtr(leftPtr, 'i');
+  drawPtr(rightPtr, 'j');
 }
 
 function render() {
-  const f = frames[cursor] ?? { array: [], highlighted: [], sorted: [], message: 'No frames loaded.' };
-  drawArray(f.array, f.highlighted, f.sorted, f.key ?? null, f.minIndex ?? null);
+  const f = frames[cursor] ?? { array: [], message: 'No frames loaded.' };
+  drawArray(f.array, {
+    highlighted: f.highlighted ?? [],
+    sorted:      f.sorted      ?? [],
+    keyHeld:     f.key         ?? null,
+    minIndex:    f.minIndex    ?? null,
+    activeRange: f.activeRange ?? null,
+    midIndex:    f.midIndex    ?? null,
+    aux:         f.aux         ?? null,
+    writeIndex:  f.writeIndex  ?? null,
+  });
   statusText.textContent   = f.message ?? '';
   frameCounter.textContent = `frame ${frames.length ? cursor + 1 : 0} / ${frames.length}`;
 }
@@ -236,6 +408,7 @@ const ALGORITHMS = {
   bubble:    { name: 'Bubble Sort',    fn: bubbleSort    },
   insertion: { name: 'Insertion Sort', fn: insertionSort },
   selection: { name: 'Selection Sort', fn: selectionSort },
+  merge:     { name: 'Merge Sort',     fn: mergeSort     },
 };
 
 // The current working array. Mutated only via setArray() so the input field,
