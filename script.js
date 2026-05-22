@@ -28,6 +28,12 @@
 //                      (null) appear faded.
 //   - `writeIndex`   ⇒ a small triangle above the main chart points at the next slot
 //                      that the merge step will write into.
+//   - `pivotIndex`         ⇒ quicksort: that bar is drawn in pink as the active pivot.
+//   - `partitionBoundary`  ⇒ quicksort: bars left of this index (within activeRange)
+//                            shade lighter to mark the "≤ pivot" prefix; a labelled
+//                            'i' triangle sits above the boundary slot.
+//   - `scanIndex`          ⇒ quicksort: a labelled 'j' triangle marks the cell being
+//                            compared this step.
 // ============================================================================
 
 // ---- DOM handles -----------------------------------------------------------
@@ -73,13 +79,15 @@ function resizeCanvas() {
 const COLOURS = {
   bg:        '#111',
   bar:       '#4a9eff',  // default in-play
-  barDim:    '#2a3b4d',  // outside the active sub-array (merge sort)
+  barDim:    '#2a3b4d',  // outside the active sub-array (merge sort, quicksort)
+  barLE:     '#3a6fa5',  // quicksort: bar in the "≤ pivot" prefix (within active range)
   sorted:    '#3ddc97',
   minRun:    '#c084fc',  // selection sort running minimum
   highlight: '#ff9f43',
   held:      '#e94560',  // insertion sort floating key
+  pivot:     '#ec4899',  // quicksort: active pivot
   divider:   '#888',     // mid-line in active range
-  pointer:   '#ffd166',  // aux strip pointers
+  pointer:   '#ffd166',  // aux strip pointers, partition pointers
   writeMark: '#ff9f43',  // arrow above next write slot
   text:      '#fff',
   textDim:   '#777',
@@ -90,14 +98,17 @@ const FONT_MONO = '12px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
 
 function drawArray(arr, opts = {}) {
   const {
-    highlighted = [],
-    sorted      = [],
-    keyHeld     = null,
-    minIndex    = null,
-    activeRange = null,   // [lo, hi]
-    midIndex    = null,
-    aux         = null,   // { values, leftPtr, rightPtr, midOffset }
-    writeIndex  = null,
+    highlighted       = [],
+    sorted            = [],
+    keyHeld           = null,
+    minIndex          = null,
+    activeRange       = null,   // [lo, hi]
+    midIndex          = null,
+    aux               = null,   // { values, leftPtr, rightPtr, midOffset }
+    writeIndex        = null,
+    pivotIndex        = null,   // quicksort: pivot bar
+    partitionBoundary = null,   // quicksort: i + 1 (slot the next ≤-pivot value would land in)
+    scanIndex         = null,   // quicksort: j (currently being compared)
   } = opts;
 
   const W = canvas.width;
@@ -154,12 +165,19 @@ function drawArray(arr, opts = {}) {
     const y         = chartBottom - barHeight;
 
     const inActive = i >= aLo && i <= aHi;
+    // Quicksort: indices in [aLo, partitionBoundary - 1] form the "≤ pivot"
+    // prefix and get a slightly different shade so the prefix is visible at
+    // a glance even without the marker.
+    const inLEPrefix =
+      inActive && partitionBoundary !== null && i < partitionBoundary && i >= aLo;
 
-    // Colour priority: highlight > min > sorted > active default > dimmed default.
+    // Colour priority: highlight > pivot > sorted > running min > ≤-prefix > active > dim.
     let colour = inActive ? COLOURS.bar : COLOURS.barDim;
-    if (sorSet.has(i))   colour = COLOURS.sorted;
-    if (minIndex === i)  colour = COLOURS.minRun;
-    if (hiSet.has(i))    colour = COLOURS.highlight;
+    if (inLEPrefix)         colour = COLOURS.barLE;
+    if (minIndex === i)     colour = COLOURS.minRun;
+    if (sorSet.has(i))      colour = COLOURS.sorted;
+    if (pivotIndex === i)   colour = COLOURS.pivot;
+    if (hiSet.has(i))       colour = COLOURS.highlight;
     ctx.fillStyle = colour;
     ctx.fillRect(x, y, barWidth, barHeight);
   }
@@ -177,17 +195,41 @@ function drawArray(arr, opts = {}) {
     ctx.setLineDash([]);
   }
 
-  // ---- Write-index marker (small triangle above the target slot) ----------
-  if (writeIndex !== null && writeIndex >= 0 && writeIndex < arr.length) {
-    const cx = writeIndex * slotWidth + slotWidth / 2;
-    const ty = chartTop - 2;
-    ctx.fillStyle = COLOURS.writeMark;
+  // ---- Index markers above the main chart ---------------------------------
+  // A small downward triangle pointing at a slot, optionally labelled.
+  // Used for the merge-sort write head and quicksort's i / j pointers.
+  const drawSlotMarker = (slot, colour, label, yOffset = 0) => {
+    if (slot === null || slot === undefined) return;
+    // Allow slot === arr.length so we can point "just past the end" if needed.
+    if (slot < 0 || slot > arr.length) return;
+    const cx = slot * slotWidth + slotWidth / 2;
+    const ty = chartTop - 2 - yOffset;
+    ctx.fillStyle = colour;
     ctx.beginPath();
     ctx.moveTo(cx, ty);
     ctx.lineTo(cx - 5, ty - 8);
     ctx.lineTo(cx + 5, ty - 8);
     ctx.closePath();
     ctx.fill();
+    if (label) {
+      ctx.fillStyle    = colour;
+      ctx.font         = FONT_MONO;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(label, cx, ty - 9);
+    }
+  };
+
+  // Merge sort write head.
+  drawSlotMarker(writeIndex, COLOURS.writeMark, null);
+  // Quicksort partition pointers. Stack them vertically when they collide so
+  // the labels remain readable.
+  if (partitionBoundary !== null && scanIndex !== null && partitionBoundary === scanIndex) {
+    drawSlotMarker(partitionBoundary, COLOURS.pointer, 'i', 0);
+    drawSlotMarker(scanIndex,         COLOURS.pointer, 'j', 16);
+  } else {
+    drawSlotMarker(partitionBoundary, COLOURS.pointer, 'i', 0);
+    drawSlotMarker(scanIndex,         COLOURS.pointer, 'j', 0);
   }
 
   // ---- Floating held key (insertion sort) ---------------------------------
@@ -295,14 +337,17 @@ function drawAuxStrip({ aux, activeLo, slotWidth, padding, barWidth, maxVal, cha
 function render() {
   const f = frames[cursor] ?? { array: [], message: 'No frames loaded.' };
   drawArray(f.array, {
-    highlighted: f.highlighted ?? [],
-    sorted:      f.sorted      ?? [],
-    keyHeld:     f.key         ?? null,
-    minIndex:    f.minIndex    ?? null,
-    activeRange: f.activeRange ?? null,
-    midIndex:    f.midIndex    ?? null,
-    aux:         f.aux         ?? null,
-    writeIndex:  f.writeIndex  ?? null,
+    highlighted:       f.highlighted       ?? [],
+    sorted:            f.sorted            ?? [],
+    keyHeld:           f.key               ?? null,
+    minIndex:          f.minIndex          ?? null,
+    activeRange:       f.activeRange       ?? null,
+    midIndex:          f.midIndex          ?? null,
+    aux:               f.aux               ?? null,
+    writeIndex:        f.writeIndex        ?? null,
+    pivotIndex:        f.pivotIndex        ?? null,
+    partitionBoundary: f.partitionBoundary ?? null,
+    scanIndex:         f.scanIndex         ?? null,
   });
   statusText.textContent   = f.message ?? '';
   frameCounter.textContent = `frame ${frames.length ? cursor + 1 : 0} / ${frames.length}`;
@@ -409,6 +454,7 @@ const ALGORITHMS = {
   insertion: { name: 'Insertion Sort', fn: insertionSort },
   selection: { name: 'Selection Sort', fn: selectionSort },
   merge:     { name: 'Merge Sort',     fn: mergeSort     },
+  quick:     { name: 'Quick Sort',     fn: quickSort     },
 };
 
 // The current working array. Mutated only via setArray() so the input field,
