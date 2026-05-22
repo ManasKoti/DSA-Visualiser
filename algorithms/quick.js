@@ -41,8 +41,8 @@ function quickSort(input) {
     highlighted: [],
     sorted: [],
     message: n > 1
-      ? `Starting quicksort on ${n} elements.`
-      : (n === 1 ? 'Single element — already sorted.' : 'Empty array.'),
+      ? `Sorting ${n} elements with quick sort.`
+      : (n === 1 ? 'arr[0] is a single element — already sorted.' : 'Empty array.'),
   });
 
   function sortedArr() {
@@ -61,7 +61,7 @@ function quickSort(input) {
         highlighted: [],
         sorted: sortedArr(),
         activeRange: [lo, hi],
-        message: `arr[${lo}..${hi}] has one element — locked in place.`,
+        message: `arr[${lo}] is a single element — locked in place.`,
       });
       return;
     }
@@ -74,7 +74,7 @@ function quickSort(input) {
       sorted: sortedArr(),
       activeRange: [lo, hi],
       pivotIndex: hi,
-      message: `Partitioning arr[${lo}..${hi}]. Pivot = arr[${hi}] = ${arr[hi]}.`,
+      message: `Partitioning arr[${lo}..${hi}]. Pivot: arr[${hi}] = ${arr[hi]}.`,
     });
 
     const p = partition(lo, hi);
@@ -85,7 +85,7 @@ function quickSort(input) {
       highlighted: [p],
       sorted: sortedArr(),
       activeRange: [lo, hi],
-      message: `Pivot ${arr[p]} placed at index ${p}. Everything left is ≤ ${arr[p]}, everything right is > ${arr[p]}.`,
+      message: `Pivot ${arr[p]} locked at arr[${p}].`,
     });
 
     sort(lo, p - 1);
@@ -106,7 +106,7 @@ function quickSort(input) {
         pivotIndex: hi,
         partitionBoundary: i + 1,   // slot that would receive the next ≤-pivot value
         scanIndex: j,
-        message: `Comparing arr[${j}] = ${arr[j]} against pivot ${pivot}.`,
+        message: `Comparing arr[${j}] = ${arr[j]} with pivot ${pivot}.`,
       });
 
       if (arr[j] <= pivot) {
@@ -121,7 +121,7 @@ function quickSort(input) {
             pivotIndex: hi,
             partitionBoundary: i + 1,
             scanIndex: j,
-            message: `${arr[i]} ≤ ${pivot}; swapped arr[${i}] and arr[${j}] to extend the ≤-pivot prefix.`,
+            message: `Swapped arr[${i}] and arr[${j}] (${arr[i]} ≤ ${pivot}, extending the ≤-pivot prefix).`,
           });
         } else {
           // i === j means the element is already in the correct prefix slot;
@@ -134,7 +134,7 @@ function quickSort(input) {
             pivotIndex: hi,
             partitionBoundary: i + 1,
             scanIndex: j,
-            message: `${arr[j]} ≤ ${pivot}; already in the ≤-pivot prefix (no swap needed).`,
+            message: `arr[${j}] = ${arr[j]} ≤ ${pivot}, already in the ≤-pivot prefix.`,
           });
         }
       }
@@ -149,7 +149,7 @@ function quickSort(input) {
         highlighted: [home, hi],
         sorted: sortedArr(),
         activeRange: [lo, hi],
-        message: `Placing pivot: swapped arr[${home}] and arr[${hi}].`,
+        message: `Swapped arr[${home}] and arr[${hi}] (placing pivot at its sorted position).`,
       });
     } else {
       frames.push({
@@ -157,7 +157,7 @@ function quickSort(input) {
         highlighted: [home],
         sorted: sortedArr(),
         activeRange: [lo, hi],
-        message: `Pivot already at its sorted index ${home} — no swap needed.`,
+        message: `Pivot already at arr[${home}].`,
       });
     }
 

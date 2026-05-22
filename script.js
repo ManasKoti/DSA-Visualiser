@@ -54,6 +54,7 @@ const inputField     = document.getElementById('input-array');
 const btnApply       = document.getElementById('btn-apply');
 const btnRandom      = document.getElementById('btn-random');
 const inputError     = document.getElementById('input-error');
+const legendEl       = document.getElementById('legend');
 
 // ---- Player state ----------------------------------------------------------
 let frames  = [];
@@ -76,22 +77,37 @@ function resizeCanvas() {
 
 // Colours — kept as a single palette so the algorithm files don't have to
 // know about them and so adding a new state means editing one place.
+// Single source of truth for every colour the renderer can use. Each entry
+// has a stable semantic meaning; the legend below the canvas reads from
+// LEGEND_LABELS to surface only the ones active for the current algorithm.
 const COLOURS = {
   bg:        '#111',
-  bar:       '#4a9eff',  // default in-play
-  barDim:    '#2a3b4d',  // outside the active sub-array (merge sort, quicksort)
-  barLE:     '#3a6fa5',  // quicksort: bar in the "≤ pivot" prefix (within active range)
-  sorted:    '#3ddc97',
-  minRun:    '#c084fc',  // selection sort running minimum
-  highlight: '#ff9f43',
-  held:      '#e94560',  // insertion sort floating key
-  pivot:     '#ec4899',  // quicksort: active pivot
-  divider:   '#888',     // mid-line in active range
-  pointer:   '#ffd166',  // aux strip pointers, partition pointers
-  writeMark: '#ff9f43',  // arrow above next write slot
+  bar:       '#4a9eff',  // default in-play / unsorted within active region
+  barDim:    '#2a3b4d',  // outside the active sub-array (recursive sorts)
+  barLE:     '#3a6fa5',  // quicksort: the "≤ pivot" prefix (within active range)
+  sorted:    '#3ddc97',  // locked in final sorted position
+  minRun:    '#c084fc',  // selection sort: running minimum
+  highlight: '#ff9f43',  // actively touched this frame (comparison, swap target)
+  spotlight: '#e94560',  // the anchor element of the step (insertion key, quicksort pivot)
+  pointer:   '#ffd166',  // index markers above the chart (i, j, write head, aux pointers)
+  divider:   '#888',     // mid-line in active range; aux-strip half divider
   text:      '#fff',
   textDim:   '#777',
   dashGap:   '#555',
+};
+
+// Human-readable label for each colour. Keep in sync with COLOURS. Algorithms
+// pick a subset of these keys to populate the legend.
+const LEGEND_LABELS = {
+  bar:       'unsorted',
+  barDim:    'outside active range',
+  barLE:     '≤ pivot',
+  sorted:    'sorted',
+  minRun:    'running minimum',
+  highlight: 'comparing / writing',
+  spotlight: 'key / pivot',
+  pointer:   'index marker',
+  divider:   'split',
 };
 
 const FONT_MONO = '12px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
@@ -119,11 +135,13 @@ function drawArray(arr, opts = {}) {
 
   if (!arr || arr.length === 0) return;
 
-  // Vertical budget: top region for held key (insertion), bottom region for
-  // aux strip (merge). Either can be zero. The main chart claims whatever
-  // is left.
-  const heldArea  = keyHeld ? 80 : 0;
-  const auxArea   = aux ? 90 : 0;       // strip + labels + gap
+  // Vertical budget: the chart never reflows when switching algorithms.
+  // Top region houses the held key (insertion) and index markers (i, j,
+  // write head). Bottom region houses the aux strip (merge). Both are
+  // permanently reserved — empty on algorithms that don't use them — so
+  // the bar heights and positions stay stable across the whole tool.
+  const heldArea  = 80;
+  const auxArea   = 90;
   const bottomPad = 20;
 
   const chartTop    = heldArea;
@@ -176,7 +194,7 @@ function drawArray(arr, opts = {}) {
     if (inLEPrefix)         colour = COLOURS.barLE;
     if (minIndex === i)     colour = COLOURS.minRun;
     if (sorSet.has(i))      colour = COLOURS.sorted;
-    if (pivotIndex === i)   colour = COLOURS.pivot;
+    if (pivotIndex === i)   colour = COLOURS.spotlight;
     if (hiSet.has(i))       colour = COLOURS.highlight;
     ctx.fillStyle = colour;
     ctx.fillRect(x, y, barWidth, barHeight);
@@ -221,7 +239,7 @@ function drawArray(arr, opts = {}) {
   };
 
   // Merge sort write head.
-  drawSlotMarker(writeIndex, COLOURS.writeMark, null);
+  drawSlotMarker(writeIndex, COLOURS.pointer, null);
   // Quicksort partition pointers. Stack them vertically when they collide so
   // the labels remain readable.
   if (partitionBoundary !== null && scanIndex !== null && partitionBoundary === scanIndex) {
@@ -240,7 +258,7 @@ function drawArray(arr, opts = {}) {
     const heldBottom = chartTop - 6;
     const heldTop    = heldBottom - cappedH;
 
-    ctx.fillStyle = COLOURS.held;
+    ctx.fillStyle = COLOURS.spotlight;
     ctx.fillRect(x, heldTop, barWidth, cappedH);
 
     ctx.fillStyle    = COLOURS.text;
@@ -267,16 +285,14 @@ function drawArray(arr, opts = {}) {
 
 // Auxiliary buffer strip — drawn beneath the main chart, horizontally
 // aligned with the active range so cells map one-to-one to their eventual
-// destination slot. The two pointers sit above the strip; the divider
-// between the left and right halves sits inside it.
+// destination slot.
 function drawAuxStrip({ aux, activeLo, slotWidth, padding, barWidth, maxVal, chartBottom, auxArea }) {
   const { values, leftPtr, rightPtr, midOffset } = aux;
-  const gapAbove   = 14;                            // breathing room below main chart
-  const stripTop   = chartBottom + gapAbove;
-  const stripH     = auxArea - gapAbove - 8;        // leave a little room for labels
-  const stripBot   = stripTop + stripH;
+  const gapAbove = 14;
+  const stripTop = chartBottom + gapAbove;
+  const stripH   = auxArea - gapAbove - 8;
+  const stripBot = stripTop + stripH;
 
-  // Background band so the strip reads as a unit even when many cells are null.
   ctx.fillStyle = '#1a1a1a';
   ctx.fillRect(activeLo * slotWidth, stripTop, values.length * slotWidth, stripH);
 
@@ -285,7 +301,6 @@ function drawAuxStrip({ aux, activeLo, slotWidth, padding, barWidth, maxVal, cha
     const v = values[i];
 
     if (v === null) {
-      // Consumed slot: a faint dashed outline so the eye can still see it was there.
       ctx.strokeStyle = COLOURS.dashGap;
       ctx.lineWidth = 1;
       ctx.setLineDash([3, 3]);
@@ -296,12 +311,10 @@ function drawAuxStrip({ aux, activeLo, slotWidth, padding, barWidth, maxVal, cha
 
     const h = Math.max(2, (v / maxVal) * (stripH - 4));
     const y = stripBot - h - 2;
-    // Tint left half vs. right half so the two sorted runs are visually distinct.
     ctx.fillStyle = i < midOffset ? '#5d7fbf' : '#bf7f5d';
     ctx.fillRect(x, y, barWidth, h);
   }
 
-  // Divider between the two halves of the strip.
   const dividerX = (activeLo + midOffset) * slotWidth;
   ctx.strokeStyle = COLOURS.divider;
   ctx.lineWidth = 1;
@@ -312,7 +325,6 @@ function drawAuxStrip({ aux, activeLo, slotWidth, padding, barWidth, maxVal, cha
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Pointers — small downward triangles hovering just above the strip.
   const drawPtr = (ptr, label) => {
     if (ptr === null || ptr === undefined) return;
     const cx = (activeLo + ptr) * slotWidth + slotWidth / 2;
@@ -354,6 +366,39 @@ function render() {
 }
 
 // ============================================================================
+// Legend — per-algorithm.
+// ============================================================================
+
+const ALGO_LEGEND_KEYS = {
+  bubble:    ['bar', 'highlight', 'sorted'],
+  insertion: ['bar', 'highlight', 'spotlight', 'sorted'],
+  selection: ['bar', 'highlight', 'minRun', 'sorted'],
+  merge:     ['bar', 'barDim', 'highlight', 'pointer', 'divider', 'sorted'],
+  quick:     ['bar', 'barDim', 'barLE', 'highlight', 'spotlight', 'pointer', 'sorted'],
+};
+
+function renderLegend(algoKey) {
+  if (!legendEl) return;
+  const keys = ALGO_LEGEND_KEYS[algoKey] ?? Object.keys(LEGEND_LABELS);
+  legendEl.innerHTML = '';
+  for (const k of keys) {
+    const label = LEGEND_LABELS[k];
+    if (!label) continue;
+    const item = document.createElement('span');
+    item.className = 'legend-item';
+    const swatch = document.createElement('span');
+    swatch.className = 'legend-swatch';
+    swatch.style.background = COLOURS[k];
+    const text = document.createElement('span');
+    text.className = 'legend-label';
+    text.textContent = label;
+    item.appendChild(swatch);
+    item.appendChild(text);
+    legendEl.appendChild(item);
+  }
+}
+
+// ============================================================================
 // Player
 // ============================================================================
 
@@ -369,13 +414,13 @@ function tick() {
     render();
     timerId = setTimeout(tick, 1000 / fps);
   } else {
-    pause();   // reached end
+    pause();
   }
 }
 
 function play() {
   if (frames.length === 0) return;
-  if (cursor >= frames.length - 1) cursor = 0;   // replay from start
+  if (cursor >= frames.length - 1) cursor = 0;
   playing = true;
   updateButtons();
   tick();
@@ -429,7 +474,6 @@ speedInput.addEventListener('input', () => {
 
 window.addEventListener('resize', resizeCanvas);
 
-// Keyboard shortcuts (handy for testing).
 document.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT') return;
   switch (e.key) {
@@ -442,11 +486,6 @@ document.addEventListener('keydown', (e) => {
 
 // ============================================================================
 // Algorithm registry
-// ----------------------------------------------------------------------------
-// Each entry maps a key (matching an <option value> in the algo dropdown) to a
-// pure function that takes an array and returns a list of frames. Adding a
-// new sort = drop a file in /algorithms, add a <script> tag, add one line here
-// and one <option> in index.html.
 // ============================================================================
 
 const ALGORITHMS = {
@@ -457,11 +496,9 @@ const ALGORITHMS = {
   quick:     { name: 'Quick Sort',     fn: quickSort     },
 };
 
-// The current working array. Mutated only via setArray() so the input field,
-// frame stream, and on-screen state never drift apart.
 let currentArray = [5, 2, 8, 1, 9, 3, 7, 4, 6];
 
-const MAX_INPUT_LENGTH = 200;   // cap to keep frame count sane
+const MAX_INPUT_LENGTH = 200;
 
 function loadAlgorithm(key) {
   const algo = ALGORITHMS[key];
@@ -469,6 +506,7 @@ function loadAlgorithm(key) {
   pause();
   frames = algo.fn(currentArray.slice());
   cursor = 0;
+  renderLegend(key);
   render();
 }
 
@@ -480,10 +518,6 @@ function setArray(arr) {
 
 // ============================================================================
 // Custom input
-// ----------------------------------------------------------------------------
-// Permissive parser: splits on commas and whitespace, both work and mix freely.
-// Strict validation: non-negative integers only. Anything else returns an error
-// for inline display so the user knows exactly what they got wrong.
 // ============================================================================
 
 function parseInput(text) {
@@ -533,6 +567,6 @@ inputField.addEventListener('input', () => { inputError.textContent = ''; });
 // ---- Boot ------------------------------------------------------------------
 speedValue.textContent = `${fps} fps`;
 inputField.value = currentArray.join(', ');
-resizeCanvas();                       // sizes the canvas
-loadAlgorithm(algoSelect.value);      // generates frames + paints first frame
+resizeCanvas();
+loadAlgorithm(algoSelect.value);
 updateButtons();

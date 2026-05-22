@@ -23,7 +23,9 @@ function bubbleSort(input) {
     array: arr.slice(),
     highlighted: [],
     sorted: sorted.slice(),
-    message: `Starting bubble sort on ${n} elements.`,
+    message: n > 0
+      ? `Sorting ${n} elements with bubble sort.`
+      : 'Empty array.',
   });
 
   for (let pass = 0; pass < n - 1; pass++) {
@@ -36,7 +38,7 @@ function bubbleSort(input) {
         array: arr.slice(),
         highlighted: [i, i + 1],
         sorted: sorted.slice(),
-        message: `Comparing index ${i} (${arr[i]}) and index ${i + 1} (${arr[i + 1]}).`,
+        message: `Comparing arr[${i}] = ${arr[i]} with arr[${i + 1}] = ${arr[i + 1]}.`,
       });
 
       if (arr[i] > arr[i + 1]) {
@@ -48,7 +50,7 @@ function bubbleSort(input) {
           array: arr.slice(),
           highlighted: [i, i + 1],
           sorted: sorted.slice(),
-          message: `Swapped — array is now [..., ${arr[i]}, ${arr[i + 1]}, ...].`,
+          message: `Swapped arr[${i}] and arr[${i + 1}].`,
         });
       }
     }

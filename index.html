@@ -4,11 +4,21 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DSA Visualiser</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+
+  <!-- ── Header ── -->
   <header>
-    <h1>DSA Visualiser</h1>
+    <div class="header-brand">
+      <div class="header-logo">⬡</div>
+      <h1>DSA Visualiser</h1>
+    </div>
+
+    <div class="header-sep"></div>
 
     <label class="algo">
       Algorithm
@@ -24,6 +34,7 @@
     <span id="status-text">Ready.</span>
   </header>
 
+  <!-- ── Input toolbar ── -->
   <div id="toolbar">
     <label class="input-row">
       Input
@@ -32,27 +43,44 @@
              autocomplete="off" spellcheck="false" />
     </label>
     <button id="btn-apply"  type="button">Apply</button>
-    <button id="btn-random" type="button">Random</button>
+    <button id="btn-random" type="button">⚄&thinsp;Random</button>
     <span id="input-error" role="alert"></span>
   </div>
 
+  <!-- ── Canvas ── -->
   <main>
-    <!-- Single rendering surface. Every algorithm draws here via drawArray() etc. -->
+    <!-- Single rendering surface — all algorithms draw here via drawArray(). -->
     <canvas id="stage" width="1200" height="600"></canvas>
   </main>
 
+  <!-- ── Colour legend (populated by renderLegend() in script.js) ── -->
+  <div id="legend" aria-label="Colour legend"></div>
+
+  <!-- ── Playback controls ── -->
   <footer id="controls">
-    <button id="btn-reset" type="button">Reset</button>
-    <button id="btn-step-back" type="button">Step Back</button>
-    <button id="btn-play" type="button">Play</button>
-    <button id="btn-pause" type="button" disabled>Pause</button>
-    <button id="btn-step-forward" type="button">Step Forward</button>
+    <div class="ctrl-group">
+      <button id="btn-reset"        type="button" title="Reset (R)">↩ Reset</button>
+      <button id="btn-step-back"    type="button" title="Step back (←)">◀ Back</button>
+      <button id="btn-play"         type="button" title="Play (Space)">▶ Play</button>
+      <button id="btn-pause"        type="button" title="Pause (Space)" disabled>⏸ Pause</button>
+      <button id="btn-step-forward" type="button" title="Step forward (→)">Next ▶</button>
+    </div>
+
+    <div class="ctrl-sep"></div>
 
     <label class="speed">
       Speed
       <input id="speed" type="range" min="1" max="60" value="6" />
       <span id="speed-value">6 fps</span>
     </label>
+
+    <div class="ctrl-sep"></div>
+
+    <span class="kbd-hint">
+      <kbd>Space</kbd> play / pause &nbsp;
+      <kbd>←</kbd> <kbd>→</kbd> step &nbsp;
+      <kbd>R</kbd> reset
+    </span>
 
     <span id="frame-counter">frame 0 / 0</span>
   </footer>

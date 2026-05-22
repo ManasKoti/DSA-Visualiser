@@ -45,8 +45,8 @@ function mergeSort(input) {
     highlighted: [],
     sorted: [],
     message: n > 1
-      ? `Starting merge sort on ${n} elements.`
-      : (n === 1 ? 'Single element — already sorted.' : 'Empty array.'),
+      ? `Sorting ${n} elements with merge sort.`
+      : (n === 1 ? 'arr[0] is a single element — already sorted.' : 'Empty array.'),
   });
 
   // Recursive helper. Pushes its own frames; returns nothing.
@@ -62,7 +62,7 @@ function mergeSort(input) {
       sorted: [],
       activeRange: [lo, hi],
       midIndex: mid,
-      message: `Splitting arr[${lo}..${hi}] at ${mid} → left arr[${lo}..${mid}], right arr[${mid + 1}..${hi}].`,
+      message: `Splitting arr[${lo}..${hi}] at index ${mid} into arr[${lo}..${mid}] and arr[${mid + 1}..${hi}].`,
     });
 
     sort(lo, mid);
@@ -90,7 +90,7 @@ function mergeSort(input) {
         midOffset,
       },
       writeIndex: lo,
-      message: `Merging arr[${lo}..${mid}] with arr[${mid + 1}..${hi}]. Copied both halves into the auxiliary buffer.`,
+      message: `Merging arr[${lo}..${mid}] with arr[${mid + 1}..${hi}]. Halves copied to aux.`,
     });
 
     let i = 0;             // pointer into left half of aux:  [0 .. midOffset-1]
@@ -118,7 +118,7 @@ function mergeSort(input) {
         midIndex: mid,
         aux: auxSnapshot(),
         writeIndex: k,
-        message: `Comparing left aux[${i}] = ${auxValues[i]} with right aux[${j}] = ${auxValues[j]}.`,
+        message: `Comparing aux[${i}] = ${auxValues[i]} with aux[${j}] = ${auxValues[j]}.`,
       });
 
       let takenFromLeft;
@@ -147,7 +147,7 @@ function mergeSort(input) {
         midIndex: mid,
         aux: auxSnapshot(),
         writeIndex: k,
-        message: `Took ${takenValue} from the ${takenFromLeft ? 'left' : 'right'} half → wrote to arr[${k - 1}].`,
+        message: `Wrote ${takenValue} to arr[${k - 1}] (from ${takenFromLeft ? 'left' : 'right'} half).`,
       });
     }
 
@@ -166,7 +166,7 @@ function mergeSort(input) {
         midIndex: mid,
         aux: auxSnapshot(),
         writeIndex: k,
-        message: `Draining left half: wrote ${value} to arr[${k - 1}].`,
+        message: `Wrote ${value} to arr[${k - 1}] (draining left half).`,
       });
     }
     while (j < rightEnd) {
@@ -182,7 +182,7 @@ function mergeSort(input) {
         midIndex: mid,
         aux: auxSnapshot(),
         writeIndex: k,
-        message: `Draining right half: wrote ${value} to arr[${k - 1}].`,
+        message: `Wrote ${value} to arr[${k - 1}] (draining right half).`,
       });
     }
 
@@ -195,7 +195,7 @@ function mergeSort(input) {
       sorted: [],
       activeRange: [lo, hi],
       midIndex: mid,
-      message: `Merged arr[${lo}..${hi}] — region is now sorted.`,
+      message: `Merged arr[${lo}..${hi}].`,
     });
   }
 

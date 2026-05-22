@@ -23,7 +23,7 @@ function insertionSort(input) {
     highlighted: [],
     sorted: n > 0 ? [0] : [],
     message: n > 0
-      ? 'Starting insertion sort. The single-element prefix is trivially sorted.'
+      ? `Sorting ${n} elements with insertion sort. arr[0] is a trivial sorted prefix.`
       : 'Empty array.',
   });
 
@@ -62,7 +62,7 @@ function insertionSort(input) {
           highlighted: [j + 1],
           sorted: sortedSoFar,
           key: { value: key, index: hover },
-          message: `${arr[j]} > ${key}; shifted arr[${j}] right into index ${j + 1}.`,
+          message: `Shifted arr[${j}] to arr[${j + 1}] (${arr[j]} > ${key}).`,
         });
 
         j--;
@@ -80,7 +80,7 @@ function insertionSort(input) {
       array: arr.slice(),
       highlighted: [j + 1],
       sorted: newSorted,
-      message: `Dropped key ${key} into index ${j + 1}.`,
+      message: `Dropped key ${key} into arr[${j + 1}].`,
       // no `key` field — key has landed, the gap is gone
     });
   }

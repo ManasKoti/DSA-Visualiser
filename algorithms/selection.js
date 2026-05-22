@@ -23,7 +23,7 @@ function selectionSort(input) {
     highlighted: [],
     sorted: [],
     message: n > 0
-      ? `Starting selection sort on ${n} elements.`
+      ? `Sorting ${n} elements with selection sort.`
       : 'Empty array.',
   });
 
@@ -37,7 +37,7 @@ function selectionSort(input) {
       highlighted: [],
       sorted: sortedSoFar,
       minIndex: minIdx,
-      message: `Pass ${i + 1}: searching arr[${i}..${n - 1}] for the minimum. Candidate is arr[${i}] = ${arr[i]}.`,
+      message: `Searching arr[${i}..${n - 1}] for the minimum. Candidate: arr[${i}] = ${arr[i]}.`,
     });
 
     for (let j = i + 1; j < n; j++) {
@@ -47,7 +47,7 @@ function selectionSort(input) {
         highlighted: [j],
         sorted: sortedSoFar,
         minIndex: minIdx,
-        message: `Comparing arr[${j}] = ${arr[j]} against current min arr[${minIdx}] = ${arr[minIdx]}.`,
+        message: `Comparing arr[${j}] = ${arr[j]} with current minimum arr[${minIdx}] = ${arr[minIdx]}.`,
       });
 
       if (arr[j] < arr[minIdx]) {
@@ -58,7 +58,7 @@ function selectionSort(input) {
           highlighted: [],
           sorted: sortedSoFar,
           minIndex: minIdx,
-          message: `arr[${j}] is smaller — new minimum index is ${j}.`,
+          message: `New minimum: arr[${j}] = ${arr[j]}.`,
         });
       }
     }
@@ -70,14 +70,14 @@ function selectionSort(input) {
         array: arr.slice(),
         highlighted: [i, minIdx],
         sorted: sortedSoFar,
-        message: `Swapped arr[${i}] and arr[${minIdx}] — minimum is now in place.`,
+        message: `Swapped arr[${i}] and arr[${minIdx}].`,
       });
     } else {
       frames.push({
         array: arr.slice(),
         highlighted: [i],
         sorted: sortedSoFar,
-        message: `arr[${i}] was already the minimum — no swap needed.`,
+        message: `arr[${i}] = ${arr[i]} is already the minimum.`,
       });
     }
   }
