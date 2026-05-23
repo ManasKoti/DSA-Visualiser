@@ -26,13 +26,11 @@ Each algorithm is implemented as a pure function: it takes an array and returns 
 
 ## Running locally
 
-The project has no build step and no dependencies. To run it:
+The project uses ES modules, so it needs to be served over HTTP rather than opened directly as a `file://` URL. To run it:
 
 1. Clone the repo.
 2. Open the `DSA Visualiser` folder in VS Code (or any editor).
 3. Open `index.html` with the Live Server extension (or any static file server).
-
-A plain `file://` open will also work for the current version since everything is wired up via classic `<script>` tags, but a local server is recommended for consistency.
 
 ## Project structure
 
@@ -40,8 +38,13 @@ A plain `file://` open will also work for the current version since everything i
 DSA Visualiser/
 ├── index.html              ← markup, controls, canvas
 ├── style.css               ← dark theme, layout
-├── script.js               ← engine, renderer, input parsing, DOM wiring
+├── script.js               ← thin entry point: imports, boots the app
+├── engine.js               ← player state, tick loop, play/pause/step/reset
+├── renderer.js             ← createRenderer(canvas), drawFrame, colours
+├── legend.js               ← renderLegend, per-algorithm colour keys
+├── input.js                ← parseInput, randomArray, input validation
 └── algorithms/
+    ├── index.js            ← algorithm registry (imports and re-exports all)
     ├── bubble.js
     ├── insertion.js
     ├── selection.js
@@ -49,14 +52,15 @@ DSA Visualiser/
     └── quick.js
 ```
 
+`script.js` was split into focused ES modules after Phase 2. Each module has a single responsibility: `engine.js` owns playback state, `renderer.js` owns canvas drawing, `legend.js` owns the colour key, and `input.js` owns parsing. The renderer is a factory (`createRenderer(canvas)`) so its canvas dependency is explicit; the engine is similarly a factory (`createEngine({ onFrame, initialFps })`). Algorithm files use named exports and are wired together via `algorithms/index.js` — no globals, no separate `<script>` tags.
+
 ## Future scope
 
 Things planned but not yet built:
 
-- **Search algorithms** — linear search, binary search, and array techniques.
+- **Comparison and swap counters** — show live counts of operations so two algorithms on the same input can be meaningfully compared.
+- **Search algorithms** — linear search, binary search, and array techniques (two pointers, sliding window).
 - **Linear data structures** — stacks, queues, linked lists.
 - **Trees and graphs** — traversals, BSTs, BFS/DFS, shortest path.
 - **Framework rewrite** — port to React/Svelte/TypeScript once the vanilla version has earned its complexity.
-- **Comparison and swap counters** — show live counts of operations so two algorithms on the same input can be meaningfully compared.
-- **Modular architecture** — split `script.js` into focused ES modules (engine, renderer, legend, input, algorithm registry).
 - **README screenshot / GIF** — a short clip of the visualiser running, plus a link to a live deployed URL.
