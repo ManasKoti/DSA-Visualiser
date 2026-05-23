@@ -63,4 +63,4 @@ Things planned but not yet built:
 - **Linear data structures** — stacks, queues, linked lists.
 - **Trees and graphs** — traversals, BSTs, BFS/DFS, shortest path.
 - **Framework rewrite** — port to React/Svelte/TypeScript once the vanilla version has earned its complexity.
-- **README screenshot / GIF** — a short clip of the visualiser running, plus a link to a live deployed URL.
+- **Adding README screenshot / GIF** — a short clip of the visualiser running, plus a link to a live deployed URL.
