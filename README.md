@@ -23,6 +23,7 @@ Each algorithm is implemented as a pure function: it takes an array and returns 
 - Keyboard shortcuts (Space to play/pause, ←/→ to step, R to reset)
 - Per-algorithm colour legend that updates based on which algorithm is selected
 - Frame counter showing current position in the animation
+- Live comparison and swap counters to track algorithm efficiency
 
 ## Running locally
 
@@ -58,7 +59,6 @@ DSA Visualiser/
 
 Things planned but not yet built:
 
-- **Comparison and swap counters** — show live counts of operations so two algorithms on the same input can be meaningfully compared.
 - **Search algorithms** — linear search, binary search, and array techniques (two pointers, sliding window).
 - **Linear data structures** — stacks, queues, linked lists.
 - **Trees and graphs** — traversals, BSTs, BFS/DFS, shortest path.
