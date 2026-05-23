@@ -21,14 +21,16 @@
     <div class="header-sep"></div>
 
     <label class="algo">
-      Algorithm
-      <select id="algo">
-        <option value="bubble">Bubble Sort</option>
-        <option value="insertion">Insertion Sort</option>
-        <option value="selection">Selection Sort</option>
-        <option value="merge">Merge Sort</option>
-        <option value="quick">Quick Sort</option>
+      Kind
+      <select id="kind">
+        <option value="sort">Sorting</option>
+        <option value="search">Searching</option>
       </select>
+    </label>
+
+    <label class="algo">
+      Algorithm
+      <select id="algo"></select>
     </label>
 
     <span id="status-text">Ready.</span>
@@ -40,6 +42,12 @@
       Input
       <input id="input-array" type="text"
              placeholder="e.g. 5, 2, 8, 1, 9, 3, 7, 4, 6"
+             autocomplete="off" spellcheck="false" />
+    </label>
+    <label class="input-row target-row" id="target-row" hidden>
+      Target
+      <input id="input-target" type="text"
+             placeholder="e.g. 7"
              autocomplete="off" spellcheck="false" />
     </label>
     <button id="btn-apply"  type="button">Apply</button>
@@ -78,7 +86,7 @@
 
     <span class="kbd-hint">
       <kbd>Space</kbd> play / pause &nbsp;
-      <kbd>←</kbd> <kbd>→</kbd> step &nbsp;
+      <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step &nbsp;
       <kbd>R</kbd> reset
     </span>
 

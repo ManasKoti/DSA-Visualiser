@@ -2,7 +2,7 @@
 
 A browser-based visualiser for classic data-structures-and-algorithms problems. Built from scratch in vanilla HTML, CSS and JavaScript. No build tools, no frameworks. This is a learning project to understand how algorithms behave step by step, and to feel the friction of writing UI code without a framework before reaching for one.
 
-The current scope is sorting algorithms. More algorithm families are planned (see [Future Scope](#future-scope)).
+The current scope is sorting algorithms with live performance metrics. More algorithm families are planned (see [Future Scope](#future-scope)).
 
 ## Algorithms currently supported
 
@@ -12,7 +12,7 @@ The current scope is sorting algorithms. More algorithm families are planned (se
 - Merge Sort
 - Quick Sort
 
-Each algorithm is implemented as a pure function: it takes an array and returns a list of frames describing every comparison, swap, and intermediate state. The renderer plays those frames back on a canvas. Algorithm code never touches the DOM, and the renderer doesn't know which algorithm produced the frames.
+Each algorithm is implemented as a pure function: it takes an array and returns a list of frames describing every comparison, swap, swap count, comparison count, and intermediate state. The renderer plays those frames back on a canvas. Algorithm code never touches the DOM, and the renderer doesn't know which algorithm produced the frames. This separation keeps algorithms testable and the rendering logic independent of algorithm implementation details.
 
 ## Features
 
@@ -23,7 +23,8 @@ Each algorithm is implemented as a pure function: it takes an array and returns 
 - Keyboard shortcuts (Space to play/pause, ←/→ to step, R to reset)
 - Per-algorithm colour legend that updates based on which algorithm is selected
 - Frame counter showing current position in the animation
-- Live comparison and swap counters to track algorithm efficiency
+- **Live comparison and swap counters** to track algorithm efficiency in real-time
+- **Modular architecture:** pure algorithm functions separated from rendering (no DOM manipulation in algorithm code)
 
 ## Running locally
 
@@ -53,7 +54,7 @@ DSA Visualiser/
     └── quick.js
 ```
 
-`script.js` was split into focused ES modules after Phase 2. Each module has a single responsibility: `engine.js` owns playback state, `renderer.js` owns canvas drawing, `legend.js` owns the colour key, and `input.js` owns parsing. The renderer is a factory (`createRenderer(canvas)`) so its canvas dependency is explicit; the engine is similarly a factory (`createEngine({ onFrame, initialFps })`). Algorithm files use named exports and are wired together via `algorithms/index.js` — no globals, no separate `<script>` tags.
+`script.js` was split into focused ES modules after Phase 2 for maintainability and testability. Each module has a single responsibility: `engine.js` owns playback state and tick loop, `renderer.js` owns canvas drawing and frame visualization, `legend.js` owns the colour key, and `input.js` owns input parsing and validation. The renderer is a factory (`createRenderer(canvas)`) so its canvas dependency is explicit; the engine is similarly a factory (`createEngine({ onFrame, initialFps })`). Algorithm files use named exports and are wired together via `algorithms/index.js` with a registry pattern — no globals, no separate `<script>` tags. This design makes it easy to add new algorithms without touching the core engine or renderer.
 
 ## Future scope
 

@@ -18,6 +18,7 @@ export const ALGO_LEGEND_KEYS = {
   selection: ['bar', 'highlight', 'minRun', 'sorted'],
   merge:     ['bar', 'barDim', 'highlight', 'pointer', 'divider', 'sorted'],
   quick:     ['bar', 'barDim', 'barLE', 'highlight', 'spotlight', 'pointer', 'sorted'],
+  linear:    ['cell', 'cellDim', 'highlight', 'found'],
 };
 
 export function renderLegend(legendEl, algoKey) {

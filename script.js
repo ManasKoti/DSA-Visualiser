@@ -5,15 +5,19 @@
 //   1. Grab every DOM handle once.
 //   2. Build a renderer bound to the canvas.
 //   3. Build an engine whose onFrame callback updates the canvas + status bar.
-//   4. Wire buttons, keyboard shortcuts, and input controls.
+//   4. Populate the algorithm dropdown from the registry based on the current
+//      kind (Sorting / Searching), and wire kind/algo selectors.
+//   5. Wire buttons, keyboard shortcuts, and input controls.
 //
 // Everything substantial lives in the focused modules below. This file is the
-// glue and nothing more — if it grows past ~100 lines, something belongs in a
-// module instead.
+// glue and nothing more.
 //
 // Frame model (shared contract between algorithms and the renderer; the engine
-// is frame-agnostic):
+// is frame-agnostic). Two layouts:
+//
+// Bar-layout frame (sort algorithms):
 //   {
+//     layout?: 'bars',   // default; field optional
 //     array:        number[],
 //     highlighted?: number[],
 //     sorted?:      number[],
@@ -26,7 +30,22 @@
 //     pivotIndex?:  number,
 //     partitionBoundary?: number,
 //     scanIndex?:   number,
-//     message?:     string
+//     foundIndex?:  number,
+//     message?:     string,
+//     comparisons?: number,
+//     writes?:      number
+//   }
+//
+// Box-layout frame (search algorithms):
+//   {
+//     layout: 'boxes',
+//     array:        number[],
+//     current?:     number,    // pointer position; null on terminal frames
+//     visited?:     number[],  // dimmed trail
+//     foundIndex?:  number,    // present on the match frame only
+//     message?:     string,
+//     comparisons?: number,
+//     writes?:      number
 //   }
 // ============================================================================
 
@@ -48,8 +67,11 @@ const btnStepBack = document.getElementById('btn-step-back');
 const btnReset    = document.getElementById('btn-reset');
 const speedInput  = document.getElementById('speed');
 const speedValue  = document.getElementById('speed-value');
+const kindSelect  = document.getElementById('kind');
 const algoSelect  = document.getElementById('algo');
 const inputField  = document.getElementById('input-array');
+const targetRow   = document.getElementById('target-row');
+const targetField = document.getElementById('input-target');
 const btnApply    = document.getElementById('btn-apply');
 const btnRandom   = document.getElementById('btn-random');
 const inputError  = document.getElementById('input-error');
@@ -80,20 +102,66 @@ function updateButtons() {
   btnPause.disabled = !engine.isPlaying();
 }
 
-// ---- Algorithm loading -----------------------------------------------------
-let currentArray = [5, 2, 8, 1, 9, 3, 7, 4, 6];
+// ---- State ----------------------------------------------------------------
+let currentArray  = [5, 2, 8, 1, 9, 3, 7, 4, 6];
+let currentTarget = 7;
+
+// Remember the last algorithm picked per kind so switching kind round-trips
+// nicely. Defaults below are arbitrary but match the first option in each list.
+const lastAlgoByKind = {
+  sort:   'bubble',
+  search: 'linear',
+};
+
+// ---- Algorithm dropdown population ----------------------------------------
+// Rebuilds the algorithm <select> with only the entries matching `kind`.
+function populateAlgoOptions(kind) {
+  algoSelect.innerHTML = '';
+  for (const [key, def] of Object.entries(ALGORITHMS)) {
+    if (def.kind !== kind) continue;
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = def.name;
+    algoSelect.appendChild(opt);
+  }
+  // Restore the remembered algorithm for this kind, if it still exists in the
+  // registry; otherwise fall back to the first option.
+  const remembered = lastAlgoByKind[kind];
+  if (remembered && ALGORITHMS[remembered]?.kind === kind) {
+    algoSelect.value = remembered;
+  } else {
+    algoSelect.selectedIndex = 0;
+    lastAlgoByKind[kind] = algoSelect.value;
+  }
+}
+
+// Search algorithms get a 'Target' input next to the array input; sorts don't.
+function syncTargetVisibility(kind) {
+  targetRow.hidden = kind !== 'search';
+}
 
 function loadAlgorithm(key) {
   const algo = ALGORITHMS[key];
   if (!algo) return;
   renderLegend(legendEl, key);
-  engine.loadFrames(algo.fn(currentArray.slice()));
+  const frames = algo.kind === 'search'
+    ? algo.fn(currentArray.slice(), currentTarget)
+    : algo.fn(currentArray.slice());
+  engine.loadFrames(frames);
 }
 
 function setArray(arr) {
   currentArray = arr.slice();
   inputField.value = currentArray.join(', ');
   loadAlgorithm(algoSelect.value);
+}
+
+// Parse the 'Target' text field. Same rules as a single element of the array.
+function parseTarget(text) {
+  const trimmed = text.trim();
+  if (trimmed === '')         return { error: 'Enter a target value.' };
+  if (!/^\d+$/.test(trimmed)) return { error: `"${trimmed}" is not a non-negative integer.` };
+  return { value: Number(trimmed) };
 }
 
 // ---- Input handling --------------------------------------------------------
@@ -103,6 +171,18 @@ function applyInput() {
     inputError.textContent = result.error;
     return;
   }
+
+  // For search algorithms, also validate the target before loading anything.
+  const algo = ALGORITHMS[algoSelect.value];
+  if (algo?.kind === 'search') {
+    const t = parseTarget(targetField.value);
+    if (t.error) {
+      inputError.textContent = `Target: ${t.error}`;
+      return;
+    }
+    currentTarget = t.value;
+  }
+
   inputError.textContent = '';
   setArray(result.values);
 }
@@ -135,17 +215,37 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-algoSelect.addEventListener('change', () => loadAlgorithm(algoSelect.value));
+kindSelect.addEventListener('change', () => {
+  const kind = kindSelect.value;
+  populateAlgoOptions(kind);
+  syncTargetVisibility(kind);
+  loadAlgorithm(algoSelect.value);
+});
+
+algoSelect.addEventListener('change', () => {
+  // Remember the choice so toggling kind back later restores it.
+  const algo = ALGORITHMS[algoSelect.value];
+  if (algo) lastAlgoByKind[algo.kind] = algoSelect.value;
+  loadAlgorithm(algoSelect.value);
+});
+
 btnApply.addEventListener('click',    applyInput);
 btnRandom.addEventListener('click',   () => setArray(randomArray()));
 inputField.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); applyInput(); }
 });
 inputField.addEventListener('input', () => { inputError.textContent = ''; });
+targetField.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); applyInput(); }
+});
+targetField.addEventListener('input', () => { inputError.textContent = ''; });
 
 // ---- Boot ------------------------------------------------------------------
 speedValue.textContent = `${speedInput.value} fps`;
-inputField.value = currentArray.join(', ');
+inputField.value  = currentArray.join(', ');
+targetField.value = String(currentTarget);
+populateAlgoOptions(kindSelect.value);
+syncTargetVisibility(kindSelect.value);
 renderer.resize();
 loadAlgorithm(algoSelect.value);
 updateButtons();

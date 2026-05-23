@@ -7,10 +7,13 @@
 //   - COLOURS         : the single colour palette
 //   - LEGEND_LABELS   : human-readable label for each colour key
 //   - FONT_MONO       : the monospace font used for status text & markers
-//   - createRenderer(canvas) → { resize, drawFrame, clear }
+//   - createRenderer(canvas) -> { resize, drawFrame, clear }
 //
 // `createRenderer` captures the canvas + 2D context once. `drawFrame(frame)`
 // reads the frame fields it understands and dispatches to the right primitive.
+// Two layouts are supported:
+//   - 'bars'  (default; sort algorithms)
+//   - 'boxes' (search algorithms; pointer + dimmed visited trail)
 // Adding a new visual primitive means editing this file and nothing else.
 // ============================================================================
 
@@ -21,13 +24,17 @@ export const COLOURS = {
   bg:        '#111',
   bar:       '#4a9eff',  // default in-play / unsorted within active region
   barDim:    '#2a3b4d',  // outside the active sub-array (recursive sorts)
-  barLE:     '#3a6fa5',  // quicksort: the "≤ pivot" prefix (within active range)
+  barLE:     '#3a6fa5',  // quicksort: the "<= pivot" prefix (within active range)
   sorted:    '#3ddc97',  // locked in final sorted position
   minRun:    '#c084fc',  // selection sort: running minimum
   highlight: '#ff9f43',  // actively touched this frame (comparison, swap target)
   spotlight: '#e94560',  // the anchor element of the step (insertion key, quicksort pivot)
   pointer:   '#ffd166',  // index markers above the chart (i, j, write head, aux pointers)
   divider:   '#888',     // mid-line in active range; aux-strip half divider
+  found:     '#3ddc97',  // search: index whose value matches the target
+  // Box-layout aliases (point at existing colours; legend uses these labels).
+  cell:      '#4a9eff',  // alias of `bar`:    unvisited cell
+  cellDim:   '#2a3b4d',  // alias of `barDim`: visited cell (dimmed trail)
   text:      '#fff',
   textDim:   '#777',
   dashGap:   '#555',
@@ -45,6 +52,12 @@ export const LEGEND_LABELS = {
   spotlight: 'key / pivot',
   pointer:   'index marker',
   divider:   'split',
+  found:     'match',
+  // Box-layout aliases: the bar-flavoured keys ('bar', 'barDim') don't read
+  // naturally in a cell-and-pointer visual. These point at existing colour
+  // values so no new palette entries are needed.
+  cell:      'unvisited',
+  cellDim:   'visited',
 };
 
 export const FONT_MONO = '12px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
@@ -70,8 +83,9 @@ export function createRenderer(canvas) {
       aux               = null,   // { values, leftPtr, rightPtr, midOffset }
       writeIndex        = null,
       pivotIndex        = null,   // quicksort: pivot bar
-      partitionBoundary = null,   // quicksort: i + 1 (slot the next ≤-pivot value would land in)
+      partitionBoundary = null,   // quicksort: i + 1 (slot the next <=-pivot value would land in)
       scanIndex         = null,   // quicksort: j (currently being compared)
+      foundIndex        = null,   // linear/binary search: index whose value matches the target
     } = opts;
 
     const W = canvas.width;
@@ -85,7 +99,7 @@ export function createRenderer(canvas) {
     // Vertical budget: the chart never reflows when switching algorithms.
     // Top region houses the held key (insertion) and index markers (i, j,
     // write head). Bottom region houses the aux strip (merge). Both are
-    // permanently reserved — empty on algorithms that don't use them — so
+    // permanently reserved -- empty on algorithms that don't use them -- so
     // the bar heights and positions stay stable across the whole tool.
     const heldArea  = 80;
     const auxArea   = 90;
@@ -130,19 +144,20 @@ export function createRenderer(canvas) {
       const y         = chartBottom - barHeight;
 
       const inActive = i >= aLo && i <= aHi;
-      // Quicksort: indices in [aLo, partitionBoundary - 1] form the "≤ pivot"
+      // Quicksort: indices in [aLo, partitionBoundary - 1] form the "<= pivot"
       // prefix and get a slightly different shade so the prefix is visible at
       // a glance even without the marker.
       const inLEPrefix =
         inActive && partitionBoundary !== null && i < partitionBoundary && i >= aLo;
 
-      // Colour priority: highlight > pivot > sorted > running min > ≤-prefix > active > dim.
+      // Colour priority: found > highlight > pivot > sorted > running min > <=-prefix > active > dim.
       let colour = inActive ? COLOURS.bar : COLOURS.barDim;
       if (inLEPrefix)         colour = COLOURS.barLE;
       if (minIndex === i)     colour = COLOURS.minRun;
       if (sorSet.has(i))      colour = COLOURS.sorted;
       if (pivotIndex === i)   colour = COLOURS.spotlight;
       if (hiSet.has(i))       colour = COLOURS.highlight;
+      if (foundIndex === i)   colour = COLOURS.found;
       ctx.fillStyle = colour;
       ctx.fillRect(x, y, barWidth, barHeight);
     }
@@ -230,7 +245,7 @@ export function createRenderer(canvas) {
     }
   }
 
-  // Auxiliary buffer strip — drawn beneath the main chart, horizontally
+  // Auxiliary buffer strip -- drawn beneath the main chart, horizontally
   // aligned with the active range so cells map one-to-one to their eventual
   // destination slot.
   function drawAuxStrip({ aux, activeLo, slotWidth, padding, barWidth, maxVal, chartBottom, auxArea }) {
@@ -293,11 +308,150 @@ export function createRenderer(canvas) {
     drawPtr(rightPtr, 'j');
   }
 
-  // Draw a single frame from the algorithm output. Unknown fields are
-  // ignored, which means new algorithms can ship new frame fields without
-  // breaking the renderer for the others.
+  // ===========================================================================
+  // Box layout -- used by search algorithms.
+  // ---------------------------------------------------------------------------
+  // Each array slot renders as a labelled square. A downward arrow above the
+  // 'current' index acts as the pointer; the 'visited' set dims past slots so
+  // the scan history is visible at a glance. No bar heights, no aux strip.
+  // Frame shape understood by drawBoxes:
+  //   { array, current, visited[], foundIndex }
+  // ===========================================================================
+  function drawBoxes(arr, opts = {}) {
+    const {
+      current    = null,
+      visited    = [],
+      foundIndex = null,
+    } = opts;
+
+    const W = canvas.width;
+    const H = canvas.height;
+
+    ctx.fillStyle = COLOURS.bg;
+    ctx.fillRect(0, 0, W, H);
+
+    if (!arr || arr.length === 0) return;
+
+    // Layout: a centred row of square-ish cells. Reserve a band on top for the
+    // pointer arrow + label, and a band on the bottom for the index labels.
+    const topBand    = 60;   // pointer + 'i' label
+    const bottomBand = 28;   // index numerals
+    const sidePad    = 24;
+    const cellGap    = 8;
+
+    const usableW = W - sidePad * 2;
+    const usableH = H - topBand - bottomBand;
+    const n       = arr.length;
+
+    // Cell width is constrained by both the horizontal budget and a cap so
+    // short arrays don't blow up to canvas-wide bricks.
+    const cellW    = Math.min(96, (usableW - cellGap * (n - 1)) / n);
+    const cellH    = Math.min(96, usableH);
+    const cellSize = Math.max(20, Math.min(cellW, cellH));
+
+    const rowWidth = n * cellSize + (n - 1) * cellGap;
+    const xStart   = (W - rowWidth) / 2;
+    const yCell    = topBand + (usableH - cellSize) / 2;
+
+    const visSet = new Set(visited);
+
+    // ---- Cells -------------------------------------------------------------
+    for (let i = 0; i < n; i++) {
+      const x = xStart + i * (cellSize + cellGap);
+      const y = yCell;
+
+      // Colour priority: found > current > visited > unvisited.
+      let fill       = COLOURS.cell;
+      let textColour = COLOURS.text;
+      if (visSet.has(i)) {
+        fill       = COLOURS.cellDim;
+        textColour = COLOURS.textDim;
+      }
+      if (current === i) {
+        fill       = COLOURS.highlight;
+        textColour = COLOURS.text;
+      }
+      if (foundIndex === i) {
+        fill       = COLOURS.found;
+        textColour = '#0a2a1a';   // dark text on the bright green fill
+      }
+
+      // Filled square with a subtle border.
+      ctx.fillStyle = fill;
+      roundRect(ctx, x, y, cellSize, cellSize, 8);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      ctx.lineWidth = 1;
+      roundRect(ctx, x + 0.5, y + 0.5, cellSize - 1, cellSize - 1, 8);
+      ctx.stroke();
+
+      // Value, centred.
+      ctx.fillStyle    = textColour;
+      ctx.font         = '600 ' + Math.floor(cellSize * 0.36) + 'px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(arr[i]), x + cellSize / 2, y + cellSize / 2);
+
+      // Index, dim, beneath the cell.
+      ctx.fillStyle    = COLOURS.textDim;
+      ctx.font         = FONT_MONO;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(String(i), x + cellSize / 2, y + cellSize + 6);
+    }
+
+    // ---- Pointer arrow above current cell ----------------------------------
+    if (current !== null && current >= 0 && current < n) {
+      const cx    = xStart + current * (cellSize + cellGap) + cellSize / 2;
+      const tipY  = yCell - 6;
+      const baseY = tipY - 14;
+      ctx.fillStyle = COLOURS.pointer;
+      ctx.beginPath();
+      ctx.moveTo(cx, tipY);
+      ctx.lineTo(cx - 8, baseY);
+      ctx.lineTo(cx + 8, baseY);
+      ctx.closePath();
+      ctx.fill();
+
+      // 'i' label above the arrow.
+      ctx.fillStyle    = COLOURS.pointer;
+      ctx.font         = FONT_MONO;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText('i', cx, baseY - 2);
+    }
+  }
+
+  // Small helper: rounded rectangle path (no built-in on older canvas APIs).
+  function roundRect(ctx, x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.lineTo(x + w - rr, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+    ctx.lineTo(x + w, y + h - rr);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+    ctx.lineTo(x + rr, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+    ctx.lineTo(x, y + rr);
+    ctx.quadraticCurveTo(x, y, x + rr, y);
+    ctx.closePath();
+  }
+
+  // Draw a single frame from the algorithm output. Dispatches on layout:
+  // 'bars' (the default, sort algorithms) or 'boxes' (search algorithms).
+  // Unknown fields are ignored, which means new algorithms can ship new frame
+  // fields without breaking the renderer for the others.
   function drawFrame(frame) {
     const f = frame ?? { array: [] };
+    if (f.layout === 'boxes') {
+      drawBoxes(f.array, {
+        current:    f.current    ?? null,
+        visited:    f.visited    ?? [],
+        foundIndex: f.foundIndex ?? null,
+      });
+      return;
+    }
     drawArray(f.array, {
       highlighted:       f.highlighted       ?? [],
       sorted:            f.sorted            ?? [],
@@ -310,6 +464,7 @@ export function createRenderer(canvas) {
       pivotIndex:        f.pivotIndex        ?? null,
       partitionBoundary: f.partitionBoundary ?? null,
       scanIndex:         f.scanIndex         ?? null,
+      foundIndex:        f.foundIndex        ?? null,
     });
   }
 

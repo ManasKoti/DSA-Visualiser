@@ -198,6 +198,17 @@ header h1 {
   border-color: var(--accent);
 }
 
+/* Search-only target field: narrower, doesn't share flex growth with Input. */
+.target-row {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.target-row input {
+  width: 110px;
+  flex: 0 0 auto;
+}
+
 /* ── Error message ──────────────────────────────────────────────────── */
 #input-error {
   color: var(--danger);
