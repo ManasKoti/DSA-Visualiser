@@ -34,7 +34,7 @@
 //   that might still be moved by a higher-level merge.
 // ============================================================================
 
-function mergeSort(input) {
+export function mergeSort(input) {
   const arr    = input.slice();
   const n      = arr.length;
   const frames = [];
@@ -210,9 +210,4 @@ function mergeSort(input) {
   });
 
   return frames;
-}
-
-// Expose for the browser (global) and for node test runs (CommonJS).
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { mergeSort };
 }

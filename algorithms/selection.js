@@ -13,7 +13,7 @@
 // when arr[i] was already the minimum.
 // ============================================================================
 
-function selectionSort(input) {
+export function selectionSort(input) {
   const arr    = input.slice();
   const n      = arr.length;
   const frames = [];
@@ -91,9 +91,4 @@ function selectionSort(input) {
   });
 
   return frames;
-}
-
-// Expose for the browser (global) and for node test runs (CommonJS).
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { selectionSort };
 }

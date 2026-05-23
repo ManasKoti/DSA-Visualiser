@@ -12,7 +12,7 @@
 // Frame extension: { key: { value, index } } where index = current gap.
 // ============================================================================
 
-function insertionSort(input) {
+export function insertionSort(input) {
   const arr    = input.slice();
   const n      = arr.length;
   const frames = [];
@@ -94,9 +94,4 @@ function insertionSort(input) {
   });
 
   return frames;
-}
-
-// Expose for the browser (global) and for node test runs (CommonJS).
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { insertionSort };
 }

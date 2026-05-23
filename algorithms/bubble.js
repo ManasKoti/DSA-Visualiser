@@ -12,7 +12,7 @@
 //   { array, highlighted, sorted, message }
 // ============================================================================
 
-function bubbleSort(input) {
+export function bubbleSort(input) {
   const arr    = input.slice();
   const n      = arr.length;
   const frames = [];
@@ -77,9 +77,4 @@ function bubbleSort(input) {
   });
 
   return frames;
-}
-
-// Expose for the browser (script.js reads it off window) and for node test runs.
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { bubbleSort };
 }

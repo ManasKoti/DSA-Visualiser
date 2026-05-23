@@ -30,7 +30,7 @@
 //   different from merge sort where green only appears at the end.
 // ============================================================================
 
-function quickSort(input) {
+export function quickSort(input) {
   const arr    = input.slice();
   const n      = arr.length;
   const frames = [];
@@ -175,9 +175,4 @@ function quickSort(input) {
   });
 
   return frames;
-}
-
-// Expose for the browser (global) and for node test runs (CommonJS).
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { quickSort };
 }
