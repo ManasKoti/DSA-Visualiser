@@ -1,8 +1,8 @@
 # DSA Visualiser
 
-A browser-based visualiser for classic data-structures-and-algorithms problems. Built from scratch in vanilla HTML, CSS and JavaScript. No build tools, no frameworks. This is a learning project to understand how algorithms behave step by step, and to feel the friction of writing UI code without a framework before reaching for one.
+A browser-based visualiser for classic data-structures and algorithms problems. Built from scratch in vanilla HTML, CSS and JavaScript. No build tools, no frameworks. This is a learning project to understand how algorithms behave step by step.
 
-The current scope is sorting algorithms with live performance metrics. More algorithm families are planned (see [Future Scope](#future-scope)).
+The current scope is sorting and searching algorithms with live performance metrics. More algorithm families are planned (see [Future Scope](#future-scope)).
 
 ## Algorithms currently supported
 
@@ -11,8 +11,7 @@ The current scope is sorting algorithms with live performance metrics. More algo
 - Selection Sort
 - Merge Sort
 - Quick Sort
-
-Each algorithm is implemented as a pure function: it takes an array and returns a list of frames describing every comparison, swap, swap count, comparison count, and intermediate state. The renderer plays those frames back on a canvas. Algorithm code never touches the DOM, and the renderer doesn't know which algorithm produced the frames. This separation keeps algorithms testable and the rendering logic independent of algorithm implementation details.
+- Linear Search
 
 ## Features
 
@@ -23,8 +22,8 @@ Each algorithm is implemented as a pure function: it takes an array and returns 
 - Keyboard shortcuts (Space to play/pause, ←/→ to step, R to reset)
 - Per-algorithm colour legend that updates based on which algorithm is selected
 - Frame counter showing current position in the animation
-- **Live comparison and swap counters** to track algorithm efficiency in real-time
-- **Modular architecture:** pure algorithm functions separated from rendering (no DOM manipulation in algorithm code)
+- Live comparison and swap counters to track algorithm efficiency in real-time
+- Modular architecture: pure algorithm functions separated from rendering
 
 ## Running locally
 
@@ -51,16 +50,17 @@ DSA Visualiser/
     ├── insertion.js
     ├── selection.js
     ├── merge.js
-    └── quick.js
+    ├── quick.js
+    └── linear.js
 ```
 
-`script.js` was split into focused ES modules after Phase 2 for maintainability and testability. Each module has a single responsibility: `engine.js` owns playback state and tick loop, `renderer.js` owns canvas drawing and frame visualization, `legend.js` owns the colour key, and `input.js` owns input parsing and validation. The renderer is a factory (`createRenderer(canvas)`) so its canvas dependency is explicit; the engine is similarly a factory (`createEngine({ onFrame, initialFps })`). Algorithm files use named exports and are wired together via `algorithms/index.js` with a registry pattern — no globals, no separate `<script>` tags. This design makes it easy to add new algorithms without touching the core engine or renderer.
+`script.js` was split into focused ES modules for maintainability and testability. Each module has a single responsibility: `engine.js` owns playback state and tick loop, `renderer.js` owns canvas drawing and frame visualization, `legend.js` owns the colour key, and `input.js` owns input parsing and validation. The renderer is a factory (`createRenderer(canvas)`) so its canvas dependency is explicit; the engine is similarly a factory (`createEngine({ onFrame, initialFps })`). Algorithm files use named exports and are wired together via `algorithms/index.js` with a registry pattern — no globals, no separate `<script>` tags. This design makes it easy to add new algorithms without touching the core engine or renderer.
 
 ## Future scope
 
 Things planned but not yet built:
 
-- **Search algorithms** — linear search, binary search, and array techniques (two pointers, sliding window).
+- **Search algorithms** — binary search, and array techniques 
 - **Linear data structures** — stacks, queues, linked lists.
 - **Trees and graphs** — traversals, BSTs, BFS/DFS, shortest path.
 - **Framework rewrite** — port to React/Svelte/TypeScript once the vanilla version has earned its complexity.
