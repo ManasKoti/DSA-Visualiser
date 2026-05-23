@@ -1,24 +1,23 @@
-/* === DSA Visualiser — Redesigned UI === */
+/* === DSA Visualiser — Simplified UI ===
+   Goal: calmer chrome that recedes behind the canvas.
+   No gradients, no glows, no multi-layer shadows. Single subtle borders only. */
 
 /* ── Design tokens ──────────────────────────────────────────────────── */
 :root {
+  /* Collapsed palette: base / surface / hover (was 5 shades) */
   --bg-base:        #0c0c12;
-  --bg-surface:     #12121a;
-  --bg-elevated:    #1a1a26;
-  --bg-hover:       #22223a;
-  --bg-active:      #2a2a44;
+  --bg-surface:     #14141d;
+  --bg-hover:       #1f1f2c;
 
-  --border-subtle:  rgba(255, 255, 255, 0.05);
+  --border-subtle:  rgba(255, 255, 255, 0.06);
   --border-dim:     rgba(255, 255, 255, 0.10);
-  --border-bright:  rgba(255, 255, 255, 0.20);
+  --border-bright:  rgba(255, 255, 255, 0.18);
 
   --text-primary:   #eeeef8;
   --text-secondary: #9898b8;
   --text-muted:     #55556a;
 
   --accent:         #6366f1;
-  --accent-light:   #818cf8;
-  --accent-glow:    rgba(99, 102, 241, 0.28);
   --accent-hover:   #7577f5;
 
   --success:        #3ddc97;
@@ -27,11 +26,6 @@
 
   --radius-sm: 6px;
   --radius-md: 10px;
-  --radius-lg: 16px;
-
-  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.5);
-  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.6);
-  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.7);
 
   --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
@@ -81,13 +75,13 @@ header {
 .header-logo {
   width: 30px;
   height: 30px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-light));
+  background: var(--accent);
   border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 15px;
-  box-shadow: 0 0 14px var(--accent-glow);
+  color: #fff;
   flex-shrink: 0;
 }
 
@@ -96,10 +90,7 @@ header h1 {
   font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  background: linear-gradient(135deg, var(--text-primary) 40%, var(--accent-light));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--text-primary);
 }
 
 .header-sep {
@@ -122,7 +113,7 @@ header h1 {
 }
 
 .algo select {
-  background: var(--bg-elevated);
+  background: var(--bg-surface);
   color: var(--text-primary);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
@@ -136,7 +127,7 @@ header h1 {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239898b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 8px center;
-  transition: border-color var(--dur) var(--ease), background-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+  transition: border-color var(--dur) var(--ease), background-color var(--dur) var(--ease);
 }
 
 .algo select:hover {
@@ -147,7 +138,6 @@ header h1 {
 .algo select:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
 /* ── Status text ────────────────────────────────────────────────────── */
@@ -189,14 +179,14 @@ header h1 {
 
 .input-row input {
   flex: 1;
-  background: var(--bg-elevated);
+  background: var(--bg-surface);
   color: var(--text-primary);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
   padding: 7px 10px;
   font-size: 13px;
   font-family: var(--font-mono);
-  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+  transition: border-color var(--dur) var(--ease);
 }
 
 .input-row input::placeholder {
@@ -206,7 +196,6 @@ header h1 {
 .input-row input:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
 /* ── Error message ──────────────────────────────────────────────────── */
@@ -223,7 +212,7 @@ button {
   align-items: center;
   justify-content: center;
   gap: 5px;
-  background: var(--bg-elevated);
+  background: var(--bg-surface);
   color: var(--text-primary);
   border: 1px solid var(--border-dim);
   border-radius: var(--radius-sm);
@@ -237,8 +226,6 @@ button {
   transition:
     background var(--dur) var(--ease),
     border-color var(--dur) var(--ease),
-    box-shadow var(--dur) var(--ease),
-    transform 0.08s var(--ease),
     opacity var(--dur) var(--ease);
 }
 
@@ -248,8 +235,7 @@ button:hover:not(:disabled) {
 }
 
 button:active:not(:disabled) {
-  transform: translateY(1px);
-  background: var(--bg-active);
+  background: var(--bg-hover);
 }
 
 button:disabled {
@@ -257,20 +243,18 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* ── Accent buttons ─────────────────────────────────────────────────── */
+/* ── Accent buttons (flat fill, no glow) ────────────────────────────── */
 #btn-apply,
 #btn-play {
   background: var(--accent);
   border-color: transparent;
   color: #fff;
-  box-shadow: 0 0 14px var(--accent-glow);
 }
 
 #btn-apply:hover:not(:disabled),
 #btn-play:hover:not(:disabled) {
   background: var(--accent-hover);
   border-color: transparent;
-  box-shadow: 0 0 22px var(--accent-glow);
 }
 
 /* ── Canvas area ────────────────────────────────────────────────────── */
@@ -292,7 +276,6 @@ main {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   display: block;
-  box-shadow: var(--shadow-md), inset 0 0 80px rgba(0, 0, 0, 0.4);
 }
 
 /* ── Legend ─────────────────────────────────────────────────────────── */
@@ -316,15 +299,10 @@ main {
   font-size: 11px;
   font-weight: 500;
   color: var(--text-secondary);
-  background: var(--bg-elevated);
+  background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   border-radius: 20px;
   padding: 3px 10px 3px 7px;
-  transition: border-color var(--dur) var(--ease);
-}
-
-.legend-item:hover {
-  border-color: var(--border-dim);
 }
 
 .legend-swatch {
@@ -382,7 +360,7 @@ main {
   appearance: none;
   width: 96px;
   height: 4px;
-  background: var(--bg-active);
+  background: var(--bg-hover);
   border-radius: 2px;
   outline: none;
   cursor: pointer;
@@ -394,13 +372,6 @@ main {
   height: 14px;
   background: var(--accent);
   border-radius: 50%;
-  box-shadow: 0 0 8px var(--accent-glow);
-  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
-}
-
-#speed::-webkit-slider-thumb:hover {
-  transform: scale(1.25);
-  box-shadow: 0 0 14px var(--accent-glow);
 }
 
 #speed::-moz-range-thumb {
@@ -409,7 +380,6 @@ main {
   background: var(--accent);
   border: none;
   border-radius: 50%;
-  box-shadow: 0 0 8px var(--accent-glow);
   cursor: pointer;
 }
 
@@ -434,7 +404,7 @@ kbd {
   align-items: center;
   justify-content: center;
   padding: 2px 6px;
-  background: var(--bg-elevated);
+  background: var(--bg-surface);
   border: 1px solid var(--border-dim);
   border-bottom-width: 2px;
   border-radius: 4px;
