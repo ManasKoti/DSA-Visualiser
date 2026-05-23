@@ -54,6 +54,7 @@ const btnApply    = document.getElementById('btn-apply');
 const btnRandom   = document.getElementById('btn-random');
 const inputError  = document.getElementById('input-error');
 const legendEl    = document.getElementById('legend');
+const statCounter = document.getElementById('stat-counter');
 
 // ---- Renderer and engine ---------------------------------------------------
 const renderer = createRenderer(canvas);
@@ -63,6 +64,12 @@ const engine   = createEngine({
     renderer.drawFrame(frame);
     statusText.textContent   = frame?.message ?? '';
     frameCounter.textContent = `frame ${total ? cursor + 1 : 0} / ${total}`;
+    if (frame != null && frame.comparisons !== undefined) {
+      statCounter.textContent =
+        `· ${frame.comparisons} comparisons  · ${frame.writes} write${frame.writes !== 1 ? 's' : ''}`;
+    } else {
+      statCounter.textContent = '';
+    }
     updateButtons();
   },
 });

@@ -27,17 +27,22 @@
 //     through it, consumed slots fade out
 //
 // Sorted set semantics:
-//   We only mark an index as `sorted` once the *top-level* call has finished
+//   We only mark an index as `sorted` once the top-level call has finished
 //   covering it. Intermediate merges produce locally-sorted regions but those
-//   aren't final until everything above them is done. This is closer to how
-//   bubble/selection report progress and avoids prematurely-green elements
-//   that might still be moved by a higher-level merge.
+//   are not final until everything above them is done.
+//
+// comparisons: number of element comparisons made during merge steps.
+//              Drain writes (no opponent left) are not comparisons.
+// writes:      number of elements written back from aux to the main array.
 // ============================================================================
 
 export function mergeSort(input) {
   const arr    = input.slice();
   const n      = arr.length;
   const frames = [];
+
+  let comparisons = 0;
+  let writes      = 0;
 
   // Initial frame.
   frames.push({
@@ -46,16 +51,16 @@ export function mergeSort(input) {
     sorted: [],
     message: n > 1
       ? `Sorting ${n} elements with merge sort.`
-      : (n === 1 ? 'arr[0] is a single element — already sorted.' : 'Empty array.'),
+      : (n === 1 ? 'arr[0] is a single element -- already sorted.' : 'Empty array.'),
+    comparisons,
+    writes,
   });
 
   // Recursive helper. Pushes its own frames; returns nothing.
   function sort(lo, hi) {
-    if (lo >= hi) return;                       // base case: 0 or 1 element
+    if (lo >= hi) return;
     const mid = Math.floor((lo + hi) / 2);
 
-    // Split notice — useful to see the recursion tree even though we don't
-    // render the call stack explicitly.
     frames.push({
       array: arr.slice(),
       highlighted: [],
@@ -63,6 +68,8 @@ export function mergeSort(input) {
       activeRange: [lo, hi],
       midIndex: mid,
       message: `Splitting arr[${lo}..${hi}] at index ${mid} into arr[${lo}..${mid}] and arr[${mid + 1}..${hi}].`,
+      comparisons,
+      writes,
     });
 
     sort(lo, mid);
@@ -70,11 +77,9 @@ export function mergeSort(input) {
     merge(lo, mid, hi);
   }
 
-  // Standard in-place-with-aux merge: copy the active range out, then walk
-  // two pointers back into the main array.
   function merge(lo, mid, hi) {
-    const midOffset = mid - lo + 1;             // index in aux where right half starts
-    const auxValues = arr.slice(lo, hi + 1);    // snapshot of the two sorted halves
+    const midOffset = mid - lo + 1;
+    const auxValues = arr.slice(lo, hi + 1);
 
     // Snapshot frame: aux now holds the two sorted halves, ready to merge.
     frames.push({
@@ -91,16 +96,17 @@ export function mergeSort(input) {
       },
       writeIndex: lo,
       message: `Merging arr[${lo}..${mid}] with arr[${mid + 1}..${hi}]. Halves copied to aux.`,
+      comparisons,
+      writes,
     });
 
-    let i = 0;             // pointer into left half of aux:  [0 .. midOffset-1]
-    let j = midOffset;     // pointer into right half of aux: [midOffset .. hi-lo]
-    let k = lo;            // write head in main array
+    let i = 0;
+    let j = midOffset;
+    let k = lo;
 
     const leftEnd  = midOffset;
     const rightEnd = hi - lo + 1;
 
-    // Helper to make frame construction less verbose. Captures current i/j/k.
     const auxSnapshot = () => ({
       values: auxValues.slice(),
       leftPtr:  i < leftEnd  ? i : null,
@@ -110,6 +116,7 @@ export function mergeSort(input) {
 
     while (i < leftEnd && j < rightEnd) {
       // Comparison frame.
+      comparisons++;
       frames.push({
         array: arr.slice(),
         highlighted: [],
@@ -119,6 +126,8 @@ export function mergeSort(input) {
         aux: auxSnapshot(),
         writeIndex: k,
         message: `Comparing aux[${i}] = ${auxValues[i]} with aux[${j}] = ${auxValues[j]}.`,
+        comparisons,
+        writes,
       });
 
       let takenFromLeft;
@@ -127,7 +136,7 @@ export function mergeSort(input) {
         takenFromLeft = true;
         takenValue    = auxValues[i];
         arr[k]        = auxValues[i];
-        auxValues[i]  = null;                   // mark consumed for the renderer
+        auxValues[i]  = null;
         i++;
       } else {
         takenFromLeft = false;
@@ -137,8 +146,9 @@ export function mergeSort(input) {
         j++;
       }
       k++;
+      writes++;
 
-      // Write frame: the consumed cell in aux is now null; arr[k-1] holds the value.
+      // Write frame.
       frames.push({
         array: arr.slice(),
         highlighted: [k - 1],
@@ -148,16 +158,18 @@ export function mergeSort(input) {
         aux: auxSnapshot(),
         writeIndex: k,
         message: `Wrote ${takenValue} to arr[${k - 1}] (from ${takenFromLeft ? 'left' : 'right'} half).`,
+        comparisons,
+        writes,
       });
     }
 
-    // Drain whichever half still has elements. One frame per write so the
-    // animation stays uniform with the merge phase above.
+    // Drain whichever half still has elements.
     while (i < leftEnd) {
       const value  = auxValues[i];
       arr[k]       = value;
       auxValues[i] = null;
       i++; k++;
+      writes++;
       frames.push({
         array: arr.slice(),
         highlighted: [k - 1],
@@ -167,6 +179,8 @@ export function mergeSort(input) {
         aux: auxSnapshot(),
         writeIndex: k,
         message: `Wrote ${value} to arr[${k - 1}] (draining left half).`,
+        comparisons,
+        writes,
       });
     }
     while (j < rightEnd) {
@@ -174,6 +188,7 @@ export function mergeSort(input) {
       arr[k]       = value;
       auxValues[j] = null;
       j++; k++;
+      writes++;
       frames.push({
         array: arr.slice(),
         highlighted: [k - 1],
@@ -183,12 +198,12 @@ export function mergeSort(input) {
         aux: auxSnapshot(),
         writeIndex: k,
         message: `Wrote ${value} to arr[${k - 1}] (draining right half).`,
+        comparisons,
+        writes,
       });
     }
 
-    // Merge-complete frame: drop the aux strip so the eye can see the merged
-    // region as a single sorted block. Don't mark it `sorted` yet — that's
-    // reserved for the final frame, see the header comment.
+    // Merge-complete frame.
     frames.push({
       array: arr.slice(),
       highlighted: [],
@@ -196,6 +211,8 @@ export function mergeSort(input) {
       activeRange: [lo, hi],
       midIndex: mid,
       message: `Merged arr[${lo}..${hi}].`,
+      comparisons,
+      writes,
     });
   }
 
@@ -207,6 +224,8 @@ export function mergeSort(input) {
     highlighted: [],
     sorted: Array.from({ length: n }, (_, k) => k),
     message: n > 0 ? 'Sorted.' : 'Empty array.',
+    comparisons,
+    writes,
   });
 
   return frames;
