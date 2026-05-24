@@ -17,10 +17,13 @@ The current scope is sorting and searching algorithms with live performance metr
 - Linear Search
 - Binary Search
 
+**Data Structures**
+- Queue (FIFO)
+
 ## Features
 
-- Seven algorithms across two families (sorting and searching), selectable via a Kind dropdown
-- Sorting algorithms animate on a bar chart while searching algorithms use a boxes layout with labelled cells.
+- Eight algorithms and structures across three families (sorting, searching and data structures), selectable via a Kind dropdown
+- Sorting algorithms animate on a bar chart; searching algorithms use a boxes layout with labelled cells; data structures use a nodes layout
 - Target-value input shown automatically when a search algorithm is selected
 - Custom input (comma-separated values) or one-click random array generation
 - Full playback controls: play, pause, step forward, step back, reset
@@ -58,16 +61,14 @@ DSA Visualiser/
     ├── merge.js
     ├── quick.js
     ├── linear.js
-    └── binary.js
+    ├── binary.js
+    └── queue.js           
 ```
-
-`script.js` was split into focused ES modules for maintainability and testability. Each module has a single responsibility: `engine.js` owns playback state and tick loop, `renderer.js` owns canvas drawing and frame visualization, `legend.js` owns the colour key, and `input.js` owns input parsing and validation. The renderer is a factory (`createRenderer(canvas)`) so its canvas dependency is explicit; the engine is similarly a factory (`createEngine({ onFrame, initialFps })`). Algorithm files use named exports and are wired together via `algorithms/index.js` with a registry pattern — no globals, no separate `<script>` tags. This design makes it easy to add new algorithms without touching the core engine or renderer.
 
 ## Future scope
 
 Things planned but not yet built:
 
-- **Linear data structures** — stacks, queues, linked lists.
+- **More linear data structures** — stacks, linked lists.
 - **Trees and graphs** — traversals, BSTs, BFS/DFS, shortest path.
-- **Framework rewrite** — port to React/Svelte/TypeScript once the vanilla version has earned its complexity.
 - **Adding README screenshot / GIF** — a short clip of the visualiser running, plus a link to a live deployed URL.
