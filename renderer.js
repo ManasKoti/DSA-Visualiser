@@ -11,9 +11,10 @@
 //
 // `createRenderer` captures the canvas + 2D context once. `drawFrame(frame)`
 // reads the frame fields it understands and dispatches to the right primitive.
-// Two layouts are supported:
+// Three layouts are supported:
 //   - 'bars'  (default; sort algorithms)
 //   - 'boxes' (search algorithms; pointer + dimmed visited trail)
+//   - 'nodes' (linear structures; rounded-rect nodes with named pointers)
 // Adding a new visual primitive means editing this file and nothing else.
 // ============================================================================
 
@@ -462,6 +463,161 @@ export function createRenderer(canvas) {
     }
   }
 
+  // ===========================================================================
+  // Nodes layout -- used by linear structures (stack, queue, eventually linked
+  // list).
+  // ---------------------------------------------------------------------------
+  // Renders a horizontal (or future-vertical) row of rounded-rect nodes with
+  // optional named pointer labels (FRONT, REAR, TOP, ...) hovering above the
+  // node they point to. A node may be marked as `incoming` (entering this
+  // frame, e.g. enqueue arrival) or `outgoing` (leaving this frame, e.g.
+  // dequeue removal); both render with the highlight colour and a dashed
+  // outline to read as "in flight".
+  //
+  // Frame shape understood by drawNodes:
+  //   { array: [],
+  //     nodes:    [{ value }, ...],            // ordered front -> rear (queue)
+  //     pointers: { front?, rear?, top? },     // map of label -> node index
+  //     highlighted?: [indices],
+  //     incoming?:    index,
+  //     outgoing?:    index,
+  //     orientation?: 'horizontal' | 'vertical' }  // defaults to 'horizontal'
+  // ===========================================================================
+  function drawNodes(opts = {}) {
+    const {
+      nodes        = [],
+      pointers     = {},
+      highlighted  = [],
+      incoming     = null,
+      outgoing     = null,
+      orientation  = 'horizontal',
+    } = opts;
+
+    const W = canvas.width;
+    const H = canvas.height;
+
+    ctx.fillStyle = COLOURS.bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Even on an empty structure we still want to communicate "there is a
+    // queue here, just nothing in it" rather than leaving the canvas blank.
+    const n = nodes.length;
+    if (n === 0) {
+      ctx.fillStyle    = COLOURS.textDim;
+      ctx.font         = FONT_MONO;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('(empty)', W / 2, H / 2);
+      return;
+    }
+
+    // Horizontal-only for now. Vertical (stack) lands when stack ops do.
+    // Reserve bands for pointer labels above and index numerals below.
+    const topBand    = 70;   // pointer label + arrow
+    const bottomBand = 28;   // index numerals
+    const sidePad    = 24;
+    const nodeGap    = 12;
+
+    const usableW = W - sidePad * 2;
+    const usableH = H - topBand - bottomBand;
+
+    const nodeW    = Math.min(96, (usableW - nodeGap * (n - 1)) / n);
+    const nodeH    = Math.min(96, usableH);
+    const nodeSize = Math.max(28, Math.min(nodeW, nodeH));
+
+    const rowWidth = n * nodeSize + (n - 1) * nodeGap;
+    const xStart   = (W - rowWidth) / 2;
+    const yNode    = topBand + (usableH - nodeSize) / 2;
+
+    const hiSet = new Set(highlighted);
+
+    // Helper: x-centre of node i.
+    const nodeCx = (i) => xStart + i * (nodeSize + nodeGap) + nodeSize / 2;
+
+    // ---- Nodes -------------------------------------------------------------
+    for (let i = 0; i < n; i++) {
+      const x = xStart + i * (nodeSize + nodeGap);
+      const y = yNode;
+
+      const isIncoming = incoming === i;
+      const isOutgoing = outgoing === i;
+      const isHighlit  = hiSet.has(i) || isIncoming || isOutgoing;
+
+      // Colour: highlight for in-flight or explicitly highlighted, plain
+      // `cell` for at-rest queue members.
+      ctx.fillStyle = isHighlit ? COLOURS.highlight : COLOURS.cell;
+      roundRect(ctx, x, y, nodeSize, nodeSize, 10);
+      ctx.fill();
+
+      // Border: solid hairline normally, dashed when in flight to reinforce
+      // "this is transient".
+      ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+      ctx.lineWidth = isHighlit ? 1.5 : 1;
+      if (isIncoming || isOutgoing) {
+        ctx.setLineDash([5, 3]);
+      }
+      roundRect(ctx, x + 0.5, y + 0.5, nodeSize - 1, nodeSize - 1, 10);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Value, centred.
+      ctx.fillStyle    = COLOURS.text;
+      ctx.font         = '600 ' + Math.floor(nodeSize * 0.36) + 'px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(nodes[i].value), x + nodeSize / 2, y + nodeSize / 2);
+
+      // Index, dim, beneath the node.
+      ctx.fillStyle    = COLOURS.textDim;
+      ctx.font         = FONT_MONO;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(String(i), x + nodeSize / 2, y + nodeSize + 6);
+    }
+
+    // ---- Pointer labels above nodes ----------------------------------------
+    // Each named pointer ('front', 'rear', ...) draws a downward triangle
+    // pointing at its node plus an uppercase label above it. When two
+    // pointers fall on the same node (single-element queue: front === rear),
+    // stack the labels vertically so both remain legible.
+    const pointerEntries = Object.entries(pointers).filter(
+      ([, idx]) => idx !== null && idx !== undefined && idx >= 0 && idx < n
+    );
+
+    // Group by target node so we can stack collisions.
+    const groups = new Map();
+    for (const [name, idx] of pointerEntries) {
+      if (!groups.has(idx)) groups.set(idx, []);
+      groups.get(idx).push(name);
+    }
+
+    for (const [idx, names] of groups) {
+      const cx   = nodeCx(idx);
+      const tipY = yNode - 6;
+      const baseY = tipY - 12;
+
+      // Triangle.
+      ctx.fillStyle = COLOURS.pointer;
+      ctx.beginPath();
+      ctx.moveTo(cx, tipY);
+      ctx.lineTo(cx - 7, baseY);
+      ctx.lineTo(cx + 7, baseY);
+      ctx.closePath();
+      ctx.fill();
+
+      // Stacked labels (lowest first, going up).
+      ctx.fillStyle    = COLOURS.pointer;
+      ctx.font         = FONT_MONO;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'bottom';
+      let labelY = baseY - 2;
+      for (const name of names) {
+        ctx.fillText(name.toUpperCase(), cx, labelY);
+        labelY -= 14;
+      }
+    }
+  }
+
   // Small helper: rounded rectangle path (no built-in on older canvas APIs).
   function roundRect(ctx, x, y, w, h, r) {
     const rr = Math.min(r, w / 2, h / 2);
@@ -484,6 +640,17 @@ export function createRenderer(canvas) {
   // fields without breaking the renderer for the others.
   function drawFrame(frame) {
     const f = frame ?? { array: [] };
+    if (f.layout === 'nodes') {
+      drawNodes({
+        nodes:       f.nodes       ?? [],
+        pointers:    f.pointers    ?? {},
+        highlighted: f.highlighted ?? [],
+        incoming:    f.incoming    ?? null,
+        outgoing:    f.outgoing    ?? null,
+        orientation: f.orientation ?? 'horizontal',
+      });
+      return;
+    }
     if (f.layout === 'boxes') {
       drawBoxes(f.array, {
         current:    f.current    ?? null,

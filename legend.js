@@ -30,6 +30,11 @@ export const ALGO_LEGEND_KEYS = {
     ['divider',   'low / high range'],
     ['found',     'match'],
   ],
+  queue: [
+    ['cell',      'queue element'],
+    ['highlight', 'entering / leaving'],
+    ['pointer',   'FRONT / REAR'],
+  ],
 };
 
 export function renderLegend(legendEl, algoKey) {

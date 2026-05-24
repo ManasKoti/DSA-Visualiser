@@ -209,6 +209,35 @@ header h1 {
   flex: 0 0 auto;
 }
 
+/* ── Operations row (structure kind) ────────────────────────────────── */
+#ops-row {
+  padding: 8px 20px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+/* Op-value input mirrors the target field: fixed narrow width. */
+.ops-value-row {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.ops-value-row input {
+  width: 110px;
+  flex: 0 0 auto;
+}
+
+#ops-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 /* ── Error message ──────────────────────────────────────────────────── */
 #input-error {
   color: var(--danger);

@@ -25,6 +25,7 @@
       <select id="kind">
         <option value="sort">Sorting</option>
         <option value="search">Searching</option>
+        <option value="structure">Structures</option>
       </select>
     </label>
 
@@ -53,6 +54,17 @@
     <button id="btn-apply"  type="button">Apply</button>
     <button id="btn-random" type="button">⚄&thinsp;Random</button>
     <span id="input-error" role="alert"></span>
+  </div>
+
+  <!-- ── Operations toolbar (structures only; hidden for sort/search) ── -->
+  <div id="ops-row" hidden>
+    <label class="input-row ops-value-row">
+      Value
+      <input id="ops-value" type="text"
+             placeholder="e.g. 7"
+             autocomplete="off" spellcheck="false" />
+    </label>
+    <div id="ops-buttons" class="ctrl-group"></div>
   </div>
 
   <!-- ── Canvas ── -->
