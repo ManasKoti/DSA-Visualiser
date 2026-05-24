@@ -144,9 +144,15 @@ function loadAlgorithm(key) {
   const algo = ALGORITHMS[key];
   if (!algo) return;
   renderLegend(legendEl, key);
+  // Binary search requires a sorted array. Sort a copy so the visualizer's
+  // displayed array matches what the algorithm actually walks over, without
+  // mutating the user's input order for other algorithms.
+  const arrForAlgo = key === 'binary'
+    ? currentArray.slice().sort((a, b) => a - b)
+    : currentArray.slice();
   const frames = algo.kind === 'search'
-    ? algo.fn(currentArray.slice(), currentTarget)
-    : algo.fn(currentArray.slice());
+    ? algo.fn(arrForAlgo, currentTarget)
+    : algo.fn(arrForAlgo);
   engine.loadFrames(frames);
 }
 

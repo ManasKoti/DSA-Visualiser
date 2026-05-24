@@ -12,6 +12,10 @@
 
 import { COLOURS, LEGEND_LABELS } from './renderer.js';
 
+// Each entry is either a colour-key string (use the shared LEGEND_LABELS text)
+// or a [colourKey, labelOverride] tuple when the shared label doesn't read
+// naturally in this algorithm's context (e.g. binary search uses the
+// 'divider' colour for its low/high bracket, not for a "split").
 export const ALGO_LEGEND_KEYS = {
   bubble:    ['bar', 'highlight', 'sorted'],
   insertion: ['bar', 'highlight', 'spotlight', 'sorted'],
@@ -19,14 +23,22 @@ export const ALGO_LEGEND_KEYS = {
   merge:     ['bar', 'barDim', 'highlight', 'pointer', 'divider', 'sorted'],
   quick:     ['bar', 'barDim', 'barLE', 'highlight', 'spotlight', 'pointer', 'sorted'],
   linear:    ['cell', 'cellDim', 'highlight', 'found'],
+  binary: [
+    'cell',
+    ['cellDim',   'eliminated'],
+    ['highlight', 'mid (comparing)'],
+    ['divider',   'low / high range'],
+    ['found',     'match'],
+  ],
 };
 
 export function renderLegend(legendEl, algoKey) {
   if (!legendEl) return;
-  const keys = ALGO_LEGEND_KEYS[algoKey] ?? Object.keys(LEGEND_LABELS);
+  const entries = ALGO_LEGEND_KEYS[algoKey] ?? Object.keys(LEGEND_LABELS);
   legendEl.innerHTML = '';
-  for (const k of keys) {
-    const label = LEGEND_LABELS[k];
+  for (const entry of entries) {
+    const [k, override] = Array.isArray(entry) ? entry : [entry, null];
+    const label = override ?? LEGEND_LABELS[k];
     if (!label) continue;
     const item = document.createElement('span');
     item.className = 'legend-item';

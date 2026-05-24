@@ -20,6 +20,7 @@ import { selectionSort } from './selection.js';
 import { mergeSort }     from './merge.js';
 import { quickSort }     from './quick.js';
 import { linearSearch }  from './linear.js';
+import { binarySearch }  from './binary.js';
 
 export const ALGORITHMS = {
   bubble:    { name: 'Bubble Sort',    kind: 'sort',   fn: bubbleSort    },
@@ -28,4 +29,5 @@ export const ALGORITHMS = {
   merge:     { name: 'Merge Sort',     kind: 'sort',   fn: mergeSort     },
   quick:     { name: 'Quick Sort',     kind: 'sort',   fn: quickSort     },
   linear:    { name: 'Linear Search',  kind: 'search', fn: linearSearch  },
+  binary:    { name: 'Binary Search',  kind: 'search', fn: binarySearch  },
 };

@@ -322,7 +322,20 @@ export function createRenderer(canvas) {
       current    = null,
       visited    = [],
       foundIndex = null,
+      // Binary search extras: the active [low, high] window, the mid pointer,
+      // and the indices already ruled out. `mid` is treated like `current`
+      // (it's the cell being compared this frame); `eliminated` is treated
+      // like `visited` (dimmed trail of indices the algorithm has discarded).
+      low        = null,
+      high       = null,
+      mid        = null,
+      eliminated = [],
     } = opts;
+
+    // Normalise binary-search fields onto the same names the rest of this
+    // function already understands.
+    const effCurrent = current ?? mid;
+    const effVisited = visited.length ? visited : eliminated;
 
     const W = canvas.width;
     const H = canvas.height;
@@ -353,21 +366,21 @@ export function createRenderer(canvas) {
     const xStart   = (W - rowWidth) / 2;
     const yCell    = topBand + (usableH - cellSize) / 2;
 
-    const visSet = new Set(visited);
+    const visSet = new Set(effVisited);
 
     // ---- Cells -------------------------------------------------------------
     for (let i = 0; i < n; i++) {
       const x = xStart + i * (cellSize + cellGap);
       const y = yCell;
 
-      // Colour priority: found > current > visited > unvisited.
+      // Colour priority: found > current/mid > visited/eliminated > unvisited.
       let fill       = COLOURS.cell;
       let textColour = COLOURS.text;
       if (visSet.has(i)) {
         fill       = COLOURS.cellDim;
         textColour = COLOURS.textDim;
       }
-      if (current === i) {
+      if (effCurrent === i) {
         fill       = COLOURS.highlight;
         textColour = COLOURS.text;
       }
@@ -400,9 +413,35 @@ export function createRenderer(canvas) {
       ctx.fillText(String(i), x + cellSize / 2, y + cellSize + 6);
     }
 
-    // ---- Pointer arrow above current cell ----------------------------------
-    if (current !== null && current >= 0 && current < n) {
-      const cx    = xStart + current * (cellSize + cellGap) + cellSize / 2;
+    // ---- Low/High bracket (binary search) ----------------------------------
+    // A thin bracket below the active window plus 'low' / 'high' labels.
+    // Only drawn when both bounds are present and form a valid range.
+    if (low !== null && high !== null && low >= 0 && high < n && low <= high) {
+      const xLo    = xStart + low  * (cellSize + cellGap);
+      const xHi    = xStart + high * (cellSize + cellGap) + cellSize;
+      const yBrack = yCell + cellSize + 22;   // sits below the index numerals
+      const tick   = 6;
+      ctx.strokeStyle = COLOURS.divider;
+      ctx.lineWidth   = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(xLo, yBrack - tick);
+      ctx.lineTo(xLo, yBrack);
+      ctx.lineTo(xHi, yBrack);
+      ctx.lineTo(xHi, yBrack - tick);
+      ctx.stroke();
+
+      ctx.fillStyle    = COLOURS.divider;
+      ctx.font         = FONT_MONO;
+      ctx.textBaseline = 'top';
+      ctx.textAlign    = 'left';
+      ctx.fillText('low',  xLo + 2, yBrack + 2);
+      ctx.textAlign    = 'right';
+      ctx.fillText('high', xHi - 2, yBrack + 2);
+    }
+
+    // ---- Pointer arrow above current/mid cell ------------------------------
+    if (effCurrent !== null && effCurrent >= 0 && effCurrent < n) {
+      const cx    = xStart + effCurrent * (cellSize + cellGap) + cellSize / 2;
       const tipY  = yCell - 6;
       const baseY = tipY - 14;
       ctx.fillStyle = COLOURS.pointer;
@@ -413,12 +452,13 @@ export function createRenderer(canvas) {
       ctx.closePath();
       ctx.fill();
 
-      // 'i' label above the arrow.
+      // Label above the arrow: 'mid' for binary search, 'i' for linear.
+      const label = (mid !== null && mid === effCurrent) ? 'mid' : 'i';
       ctx.fillStyle    = COLOURS.pointer;
       ctx.font         = FONT_MONO;
       ctx.textAlign    = 'center';
       ctx.textBaseline = 'bottom';
-      ctx.fillText('i', cx, baseY - 2);
+      ctx.fillText(label, cx, baseY - 2);
     }
   }
 
@@ -449,6 +489,13 @@ export function createRenderer(canvas) {
         current:    f.current    ?? null,
         visited:    f.visited    ?? [],
         foundIndex: f.foundIndex ?? null,
+        // Binary-search-specific fields. drawBoxes folds these onto its
+        // existing pointer + dimmed-trail concepts and adds a low/high
+        // bracket beneath the active window.
+        low:        f.low        ?? null,
+        high:       f.high       ?? null,
+        mid:        f.mid        ?? null,
+        eliminated: f.eliminated ?? [],
       });
       return;
     }
