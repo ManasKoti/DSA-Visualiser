@@ -6,16 +6,22 @@ The current scope is sorting and searching algorithms with live performance metr
 
 ## Algorithms currently supported
 
+**Sorting**
 - Bubble Sort
 - Insertion Sort
 - Selection Sort
 - Merge Sort
 - Quick Sort
+
+**Searching**
 - Linear Search
+- Binary Search
 
 ## Features
 
-- Five sorting algorithms with step-by-step animation on an HTML canvas
+- Seven algorithms across two families (sorting and searching), selectable via a Kind dropdown
+- Sorting algorithms animate on a bar chart while searching algorithms use a boxes layout with labelled cells.
+- Target-value input shown automatically when a search algorithm is selected
 - Custom input (comma-separated values) or one-click random array generation
 - Full playback controls: play, pause, step forward, step back, reset
 - Speed control (1–60 fps)
@@ -51,7 +57,8 @@ DSA Visualiser/
     ├── selection.js
     ├── merge.js
     ├── quick.js
-    └── linear.js
+    ├── linear.js
+    └── binary.js
 ```
 
 `script.js` was split into focused ES modules for maintainability and testability. Each module has a single responsibility: `engine.js` owns playback state and tick loop, `renderer.js` owns canvas drawing and frame visualization, `legend.js` owns the colour key, and `input.js` owns input parsing and validation. The renderer is a factory (`createRenderer(canvas)`) so its canvas dependency is explicit; the engine is similarly a factory (`createEngine({ onFrame, initialFps })`). Algorithm files use named exports and are wired together via `algorithms/index.js` with a registry pattern — no globals, no separate `<script>` tags. This design makes it easy to add new algorithms without touching the core engine or renderer.
@@ -60,7 +67,6 @@ DSA Visualiser/
 
 Things planned but not yet built:
 
-- **Search algorithms** — binary search, and array techniques 
 - **Linear data structures** — stacks, queues, linked lists.
 - **Trees and graphs** — traversals, BSTs, BFS/DFS, shortest path.
 - **Framework rewrite** — port to React/Svelte/TypeScript once the vanilla version has earned its complexity.
