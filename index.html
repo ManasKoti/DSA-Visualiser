@@ -77,9 +77,15 @@
   <div id="legend" aria-label="Colour legend"></div>
 
   <!-- ── Playback controls ── -->
+  <!-- The .playback-only elements hide in structure mode where each operation
+       is just a tiny 2-frame stream; only Reset, speed, and the frame counter
+       stay visible. -->
   <footer id="controls">
     <div class="ctrl-group">
-      <button id="btn-reset"        type="button" title="Reset (R)">↩ Reset</button>
+      <button id="btn-reset" type="button" title="Reset (R)">↩ Reset</button>
+    </div>
+
+    <div class="ctrl-group playback-only">
       <button id="btn-step-back"    type="button" title="Step back (←)">◀ Back</button>
       <button id="btn-play"         type="button" title="Play (Space)">▶ Play</button>
       <button id="btn-pause"        type="button" title="Pause (Space)" disabled>⏸ Pause</button>
@@ -94,9 +100,9 @@
       <span id="speed-value">6 fps</span>
     </label>
 
-    <div class="ctrl-sep"></div>
+    <div class="ctrl-sep playback-only"></div>
 
-    <span class="kbd-hint">
+    <span class="kbd-hint playback-only">
       <kbd>Space</kbd> play / pause &nbsp;
       <kbd>&larr;</kbd> <kbd>&rarr;</kbd> step &nbsp;
       <kbd>R</kbd> reset

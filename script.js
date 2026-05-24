@@ -174,12 +174,16 @@ function populateAlgoOptions(kind) {
   }
 }
 
-// Toggle the per-kind extra inputs:
+// Toggle per-kind UI surfaces:
 //   - 'search'    -> Target field next to the array input
-//   - 'structure' -> Operations row (Value field + op buttons)
+//   - 'structure' -> Operations row visible; input toolbar + playback-only
+//                    footer elements hidden (driven by `body.mode-structure`
+//                    rules in style.css; keeps the show/hide logic in CSS).
 function syncKindRows(kind) {
   targetRow.hidden = kind !== 'search';
   opsRow.hidden    = kind !== 'structure';
+  document.body.classList.remove('mode-sort', 'mode-search', 'mode-structure');
+  document.body.classList.add(`mode-${kind}`);
 }
 
 // Build the op-button row from algo.operations. Each button captures its op
@@ -329,7 +333,17 @@ btnPlay.addEventListener('click',     () => engine.play());
 btnPause.addEventListener('click',    () => engine.pause());
 btnStepFwd.addEventListener('click',  () => engine.stepForward());
 btnStepBack.addEventListener('click', () => engine.stepBack());
-btnReset.addEventListener('click',    () => engine.reset());
+btnReset.addEventListener('click',    () => {
+  // In structure mode, "Reset" means re-seed the queue from currentArray,
+  // not just rewind the last op's frame stream. The array toolbar is hidden
+  // in this mode, so this is the only built-in path back to a clean state.
+  const algo = ALGORITHMS[algoSelect.value];
+  if (algo?.kind === 'structure') {
+    loadAlgorithm(algoSelect.value);
+    return;
+  }
+  engine.reset();
+});
 
 speedInput.addEventListener('input', () => {
   const fps = Number(speedInput.value);
@@ -367,7 +381,25 @@ algoSelect.addEventListener('change', () => {
 });
 
 btnApply.addEventListener('click',    applyInput);
-btnRandom.addEventListener('click',   () => setArray(randomArray()));
+btnRandom.addEventListener('click',   () => {
+  const arr = randomArray();
+  // In search mode, also synthesise a sensible target. With a fixed target
+  // and a fresh random array, the visualisation almost always plays out as
+  // a fruitless full scan -- pedagogically dull. Bias toward picking a value
+  // that's actually in the array (80% of the time), and occasionally pick a
+  // value outside it so the "not found" path is still reachable.
+  if (ALGORITHMS[algoSelect.value]?.kind === 'search') {
+    const hit = Math.random() < 0.8;
+    if (hit) {
+      currentTarget = arr[Math.floor(Math.random() * arr.length)];
+    } else {
+      // Guaranteed miss: any value strictly above the max of `arr`.
+      currentTarget = Math.max(...arr) + 1 + Math.floor(Math.random() * 10);
+    }
+    targetField.value = String(currentTarget);
+  }
+  setArray(arr);
+});
 inputField.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); applyInput(); }
 });

@@ -141,12 +141,16 @@ header h1 {
 }
 
 /* ── Status text ────────────────────────────────────────────────────── */
+/* No max-width: longer operation messages ("99 is the only element; FRONT
+   and REAR both point to it.") read in full. min-width: 0 lets the flex
+   parent shrink the element if the header has to fit narrow viewports, at
+   which point overflow/ellipsis still kick in as a fallback. */
 #status-text {
   margin-left: auto;
   color: var(--text-muted);
   font-size: 12px;
   font-family: var(--font-mono);
-  max-width: 360px;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -207,6 +211,49 @@ header h1 {
 .target-row input {
   width: 110px;
   flex: 0 0 auto;
+}
+
+/* ── Mode-driven visibility ─────────────────────────────────────────── */
+/* The body carries a `mode-<kind>` class set by script.js (sort | search |
+   structure). Sections that don't apply to a given mode are hidden via CSS
+   so each mode reads as a focused workspace, not a kitchen sink. */
+
+/* `[hidden]` must beat any `display: ...` rule we set elsewhere. Without
+   this, an element like #ops-row (which has `display: flex`) ignores the
+   HTML hidden attribute and stays visible. */
+[hidden] {
+  display: none !important;
+}
+
+/* Structure mode: the input toolbar (array input + Apply/Random) is irrelevant
+   -- the queue is seeded once at load and then mutated through operations.
+   Hide it entirely. */
+body.mode-structure #toolbar {
+  display: none;
+}
+
+/* Search-mode-only: target row visible only in search. (The element also
+   carries the `hidden` attribute set by syncKindRows; this rule is the
+   belt-and-braces version that survives any future CSS that might override
+   `[hidden]` on `.input-row`.) */
+body:not(.mode-search) #target-row {
+  display: none;
+}
+
+/* Structure-mode-only: ops row (Value field + Enqueue/Dequeue) only in
+   structure mode. */
+body:not(.mode-structure) #ops-row {
+  display: none;
+}
+
+/* Structure mode: each operation is a tiny 2-frame stream, so play/pause/step
+   buttons and the keyboard-shortcut hint are noise. Keep Reset and the speed
+   slider; hide the frame counter ("frame 2 / 2" tells you nothing useful) and
+   the stat counter (structures don't emit comparisons/writes). */
+body.mode-structure .playback-only,
+body.mode-structure #frame-counter,
+body.mode-structure #stat-counter {
+  display: none;
 }
 
 /* ── Operations row (structure kind) ────────────────────────────────── */
