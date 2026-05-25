@@ -48,14 +48,15 @@
 //     writes?:      number
 //   }
 //
-// Nodes-layout frame (structures: queue, eventually stack / linked list):
+// Nodes-layout frame (structures: stack, queue, eventually linked list):
 //   {
 //     layout: 'nodes',
+//     orientation?: 'horizontal' | 'vertical',  // default 'horizontal'
 //     nodes:        [{ value }, ...],
 //     pointers:     { front?, rear?, top? },
 //     highlighted?: number[],
-//     incoming?:    number,    // node entering this frame (enqueue)
-//     outgoing?:    number,    // node leaving  this frame (dequeue)
+//     incoming?:    number,    // node entering this frame (push / enqueue)
+//     outgoing?:    number,    // node leaving  this frame (pop / dequeue)
 //     message?:     string
 //   }
 // ============================================================================
@@ -149,7 +150,7 @@ let pendingState  = null;   // becomes currentState once the op stream stops
 const lastAlgoByKind = {
   sort:      'bubble',
   search:    'linear',
-  structure: 'queue',
+  structure: 'stack',
 };
 
 // ---- Algorithm dropdown population ----------------------------------------
@@ -277,14 +278,35 @@ function loadAlgorithm(key) {
 
 // One-frame snapshot of a freshly-seeded structure. Walks the same nodes
 // layout the operations produce so the canvas reads identically before and
-// after any op.
+// after any op. Per-structure details (orientation, which pointers are
+// drawn) come from the algorithm key so the seed renders the same way the
+// op frames do -- a stack sits vertically with TOP, a queue sits
+// horizontally with FRONT/REAR.
 function buildSeedFrame(algo, state) {
   const items = state.items ?? [];
   const n     = items.length;
+  const key   = algoSelect.value;
+
+  let orientation = 'horizontal';
+  let pointers    = {};
+  if (n > 0) {
+    if (key === 'stack') {
+      orientation = 'vertical';
+      pointers    = { top: n - 1 };
+    } else {
+      // Default (queue and any future horizontal structure): FRONT / REAR.
+      orientation = 'horizontal';
+      pointers    = { front: 0, rear: n - 1 };
+    }
+  } else if (key === 'stack') {
+    orientation = 'vertical';
+  }
+
   return {
     layout: 'nodes',
+    orientation,
     nodes:    items.map((value) => ({ value })),
-    pointers: n === 0 ? {} : { front: 0, rear: n - 1 },
+    pointers,
     message:  n === 0
       ? `${algo.name} is empty.`
       : `${algo.name} seeded with ${n} element${n === 1 ? '' : 's'}.`,

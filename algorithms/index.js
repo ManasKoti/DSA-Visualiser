@@ -29,6 +29,7 @@ import { mergeSort }     from './merge.js';
 import { quickSort }     from './quick.js';
 import { linearSearch }  from './linear.js';
 import { binarySearch }  from './binary.js';
+import { stack }         from './stack.js';
 import { queue }         from './queue.js';
 
 export const ALGORITHMS = {
@@ -39,5 +40,6 @@ export const ALGORITHMS = {
   quick:     { name: 'Quick Sort',     kind: 'sort',   fn: quickSort     },
   linear:    { name: 'Linear Search',  kind: 'search', fn: linearSearch  },
   binary:    { name: 'Binary Search',  kind: 'search', fn: binarySearch  },
+  stack:     stack,
   queue:     queue,
 };

@@ -467,16 +467,15 @@ export function createRenderer(canvas) {
   // Nodes layout -- used by linear structures (stack, queue, eventually linked
   // list).
   // ---------------------------------------------------------------------------
-  // Renders a horizontal (or future-vertical) row of rounded-rect nodes with
-  // optional named pointer labels (FRONT, REAR, TOP, ...) hovering above the
-  // node they point to. A node may be marked as `incoming` (entering this
-  // frame, e.g. enqueue arrival) or `outgoing` (leaving this frame, e.g.
-  // dequeue removal); both render with the highlight colour and a dashed
-  // outline to read as "in flight".
+  // Renders a horizontal (queue) or vertical (stack) sequence of rounded-rect
+  // nodes with optional named pointer labels (FRONT, REAR, TOP, ...) hovering
+  // beside the node they point to. A node may be marked as `incoming`
+  // (entering this frame, e.g. push / enqueue) or `outgoing` (leaving this
+  // frame, e.g. pop / dequeue); both render with the highlight colour and a
+  // dashed outline to read as "in flight".
   //
   // Frame shape understood by drawNodes:
-  //   { array: [],
-  //     nodes:    [{ value }, ...],            // ordered front -> rear (queue)
+  //   { nodes:    [{ value }, ...],
   //     pointers: { front?, rear?, top? },     // map of label -> node index
   //     highlighted?: [indices],
   //     incoming?:    index,
@@ -511,7 +510,19 @@ export function createRenderer(canvas) {
       return;
     }
 
-    // Horizontal-only for now. Vertical (stack) lands when stack ops do.
+    // Two orientations: 'horizontal' (queue) and 'vertical' (stack).
+    // Horizontal arranges nodes left-to-right with pointer labels above each
+    // node; vertical arranges them top-to-bottom (last item highest = top of
+    // stack) with pointer labels to the right of each node.
+    if (orientation === 'vertical') {
+      drawNodesVertical({ nodes, pointers, highlighted, incoming, outgoing, n, W, H });
+    } else {
+      drawNodesHorizontal({ nodes, pointers, highlighted, incoming, outgoing, n, W, H });
+    }
+  }
+
+  // ---- Horizontal node layout (queue) --------------------------------------
+  function drawNodesHorizontal({ nodes, pointers, highlighted, incoming, outgoing, n, W, H }) {
     // Reserve bands for pointer labels above and index numerals below.
     const topBand    = 70;   // pointer label + arrow
     const bottomBand = 28;   // index numerals
@@ -538,41 +549,13 @@ export function createRenderer(canvas) {
     for (let i = 0; i < n; i++) {
       const x = xStart + i * (nodeSize + nodeGap);
       const y = yNode;
-
-      const isIncoming = incoming === i;
-      const isOutgoing = outgoing === i;
-      const isHighlit  = hiSet.has(i) || isIncoming || isOutgoing;
-
-      // Colour: highlight for in-flight or explicitly highlighted, plain
-      // `cell` for at-rest queue members.
-      ctx.fillStyle = isHighlit ? COLOURS.highlight : COLOURS.cell;
-      roundRect(ctx, x, y, nodeSize, nodeSize, 10);
-      ctx.fill();
-
-      // Border: solid hairline normally, dashed when in flight to reinforce
-      // "this is transient".
-      ctx.strokeStyle = 'rgba(255,255,255,0.18)';
-      ctx.lineWidth = isHighlit ? 1.5 : 1;
-      if (isIncoming || isOutgoing) {
-        ctx.setLineDash([5, 3]);
-      }
-      roundRect(ctx, x + 0.5, y + 0.5, nodeSize - 1, nodeSize - 1, 10);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      // Value, centred.
-      ctx.fillStyle    = COLOURS.text;
-      ctx.font         = '600 ' + Math.floor(nodeSize * 0.36) + 'px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
-      ctx.textAlign    = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(String(nodes[i].value), x + nodeSize / 2, y + nodeSize / 2);
-
-      // Index, dim, beneath the node.
-      ctx.fillStyle    = COLOURS.textDim;
-      ctx.font         = FONT_MONO;
-      ctx.textAlign    = 'center';
-      ctx.textBaseline = 'top';
-      ctx.fillText(String(i), x + nodeSize / 2, y + nodeSize + 6);
+      drawNodeCell({
+        x, y, size: nodeSize, value: nodes[i].value, i,
+        isIncoming: incoming === i,
+        isOutgoing: outgoing === i,
+        isHighlit:  hiSet.has(i) || incoming === i || outgoing === i,
+        indexBelow: true,
+      });
     }
 
     // ---- Pointer labels above nodes ----------------------------------------
@@ -615,6 +598,131 @@ export function createRenderer(canvas) {
         ctx.fillText(name.toUpperCase(), cx, labelY);
         labelY -= 14;
       }
+    }
+  }
+
+  // ---- Vertical node layout (stack) ----------------------------------------
+  // nodes[0] is the bottom of the stack, nodes[length-1] is the top. We
+  // render with the top of the stack at the *top* of the canvas so push/pop
+  // animations look like values appearing from above. Pointer labels live to
+  // the right of the node they target.
+  function drawNodesVertical({ nodes, pointers, highlighted, incoming, outgoing, n, W, H }) {
+    const topPad    = 32;
+    const bottomPad = 32;
+    const nodeGap   = 10;
+
+    const usableH = H - topPad - bottomPad;
+    const maxSize = 72;
+    const nodeH   = Math.min(maxSize, (usableH - nodeGap * (n - 1)) / n);
+    const nodeW   = Math.min(maxSize * 1.4, W * 0.35);
+    const nodeSize = Math.max(28, Math.min(nodeH, nodeW));
+
+    // Centre the column horizontally.
+    const xStart = (W - nodeSize) / 2;
+    // Place the TOP of the stack near the top of the canvas. nodes[n-1] (top
+    // of stack) renders highest; nodes[0] (bottom of stack) renders lowest.
+    const colHeight = n * nodeSize + (n - 1) * nodeGap;
+    const yStart    = topPad + Math.max(0, (usableH - colHeight) / 2);
+
+    const hiSet = new Set(highlighted);
+
+    // Helper: y-centre of node i (where i is the array index; top of stack is
+    // n-1, drawn at the smallest y).
+    const yForIndex = (i) => yStart + (n - 1 - i) * (nodeSize + nodeGap);
+    const nodeCy    = (i) => yForIndex(i) + nodeSize / 2;
+
+    // ---- Nodes -------------------------------------------------------------
+    for (let i = 0; i < n; i++) {
+      const x = xStart;
+      const y = yForIndex(i);
+      drawNodeCell({
+        x, y, size: nodeSize, w: nodeSize, value: nodes[i].value, i,
+        isIncoming: incoming === i,
+        isOutgoing: outgoing === i,
+        isHighlit:  hiSet.has(i) || incoming === i || outgoing === i,
+        indexSide:  'left',   // index numerals to the left of each node
+      });
+    }
+
+    // ---- Pointer labels to the right of nodes ------------------------------
+    // For stack, the typical labels are TOP (and optionally BOTTOM). When
+    // multiple pointers fall on the same node we stack them vertically next
+    // to the cell.
+    const pointerEntries = Object.entries(pointers).filter(
+      ([, idx]) => idx !== null && idx !== undefined && idx >= 0 && idx < n
+    );
+    const groups = new Map();
+    for (const [name, idx] of pointerEntries) {
+      if (!groups.has(idx)) groups.set(idx, []);
+      groups.get(idx).push(name);
+    }
+
+    for (const [idx, names] of groups) {
+      const cy   = nodeCy(idx);
+      const tipX = xStart + nodeSize + 6;
+      const baseX = tipX + 12;
+
+      // Leftward-pointing triangle pointing at the node's right edge.
+      ctx.fillStyle = COLOURS.pointer;
+      ctx.beginPath();
+      ctx.moveTo(tipX, cy);
+      ctx.lineTo(baseX, cy - 7);
+      ctx.lineTo(baseX, cy + 7);
+      ctx.closePath();
+      ctx.fill();
+
+      // Labels to the right of the triangle, stacked horizontally if more
+      // than one shares this node.
+      ctx.fillStyle    = COLOURS.pointer;
+      ctx.font         = FONT_MONO;
+      ctx.textAlign    = 'left';
+      ctx.textBaseline = 'middle';
+      let labelX = baseX + 4;
+      for (const name of names) {
+        const text = name.toUpperCase();
+        ctx.fillText(text, labelX, cy);
+        labelX += ctx.measureText(text).width + 8;
+      }
+    }
+  }
+
+  // Shared node-cell drawer. The fill colour and dashed-border treatment are
+  // identical between horizontal and vertical layouts; only the position and
+  // index-label placement differ.
+  function drawNodeCell({ x, y, size, w, value, i, isIncoming, isOutgoing, isHighlit, indexBelow, indexSide }) {
+    const width  = w ?? size;
+    const height = size;
+
+    ctx.fillStyle = isHighlit ? COLOURS.highlight : COLOURS.cell;
+    roundRect(ctx, x, y, width, height, 10);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.lineWidth = isHighlit ? 1.5 : 1;
+    if (isIncoming || isOutgoing) ctx.setLineDash([5, 3]);
+    roundRect(ctx, x + 0.5, y + 0.5, width - 1, height - 1, 10);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Value, centred.
+    ctx.fillStyle    = COLOURS.text;
+    ctx.font         = '600 ' + Math.floor(size * 0.36) + 'px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(value), x + width / 2, y + height / 2);
+
+    // Index label: below the cell (horizontal layout) or to its left
+    // (vertical layout).
+    ctx.fillStyle    = COLOURS.textDim;
+    ctx.font         = FONT_MONO;
+    if (indexBelow) {
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(String(i), x + width / 2, y + height + 6);
+    } else if (indexSide === 'left') {
+      ctx.textAlign    = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(i), x - 8, y + height / 2);
     }
   }
 

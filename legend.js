@@ -35,6 +35,11 @@ export const ALGO_LEGEND_KEYS = {
     ['highlight', 'entering / leaving'],
     ['pointer',   'FRONT / REAR'],
   ],
+  stack: [
+    ['cell',      'stack element'],
+    ['highlight', 'entering / leaving'],
+    ['pointer',   'TOP'],
+  ],
 };
 
 export function renderLegend(legendEl, algoKey) {
