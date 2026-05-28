@@ -18,11 +18,12 @@ The current scope is sorting and searching algorithms with live performance metr
 - Binary Search
 
 **Data Structures**
+- Stack (LIFO)
 - Queue (FIFO)
 
 ## Features
 
-- Eight algorithms and structures across three families (sorting, searching and data structures), selectable via a Kind dropdown
+- Nine algorithms and structures across three families (sorting, searching and data structures), selectable via a Kind dropdown
 - Sorting algorithms animate on a bar chart; searching algorithms use a boxes layout with labelled cells; data structures use a nodes layout
 - Target-value input shown automatically when a search algorithm is selected
 - Custom input (comma-separated values) or one-click random array generation
@@ -62,13 +63,14 @@ DSA Visualiser/
     ├── quick.js
     ├── linear.js
     ├── binary.js
-    └── queue.js           
+    ├── queue.js
+    └── stack.js
 ```
 
 ## Future scope
 
 Things planned but not yet built:
 
-- **More linear data structures** — stacks, linked lists.
+- **More linear data structures** — linked lists.
 - **Trees and graphs** — traversals, BSTs, BFS/DFS, shortest path.
 - **Adding README screenshot / GIF** — a short clip of the visualiser running, plus a link to a live deployed URL.
